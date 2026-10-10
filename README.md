@@ -53,8 +53,10 @@ ESPHome Bluetooth proxies for range.
 > uv pip install --python <HA-venv>/bin/python /path/to/tesla-ble
 > ```
 >
-> Prebuilt wheels for common platforms are on the roadmap (cibuildwheel
-> workflow is in the repository).
+> Prebuilt wheels (Linux x86_64/aarch64, macOS arm64/x86_64) are produced by
+> the repository's cibuildwheel workflow; local wheels can be built with
+> `uvx cibuildwheel --platform linux .` (macOS needs the python.org installers,
+> see the bindings README).
 
 ## Testing without Home Assistant
 
