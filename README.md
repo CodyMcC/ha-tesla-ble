@@ -44,6 +44,17 @@ ESPHome Bluetooth proxies for range.
 4. If this is a new key: open the vehicle's device page and press **Pair**,
    then tap a key card on the center console reader.
 
+> **Until `tesla-ble` is published to PyPI**, Home Assistant cannot install the
+> requirement automatically. Build and install it first:
+>
+> ```sh
+> pip install /path/to/tesla-ble/bindings/python
+> ```
+>
+> (or `uv pip install` inside the Home Assistant virtualenv). The wheel needs a
+> C++ compiler and Python ≥ 3.13; prebuilt wheels for common platforms are on
+> the roadmap.
+
 ## Testing without Home Assistant
 
 `scripts/carcheck.py` talks to the vehicle directly from any machine with
