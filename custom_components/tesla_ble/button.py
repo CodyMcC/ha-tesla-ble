@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from homeassistant.components.button import ButtonEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -14,7 +13,7 @@ from .manager import TeslaBLEManager
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: TeslaBLEConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     manager: TeslaBLEManager = entry.runtime_data
@@ -30,7 +29,7 @@ async def async_setup_entry(
 
 
 class TeslaWakeButton(TeslaBLEEntity, ButtonEntity):
-    _attr_name = "Wake"
+    _attr_translation_key = "wake"
     _attr_icon = "mdi:power"
 
     def __init__(self, manager: TeslaBLEManager) -> None:
@@ -43,7 +42,7 @@ class TeslaWakeButton(TeslaBLEEntity, ButtonEntity):
 class TeslaPairButton(TeslaBLEEntity, ButtonEntity):
     """Start pairing: press this, then tap a key card on the console."""
 
-    _attr_name = "Pair"
+    _attr_translation_key = "pair"
     _attr_icon = "mdi:key-plus"
 
     def __init__(self, manager: TeslaBLEManager) -> None:
@@ -54,7 +53,7 @@ class TeslaPairButton(TeslaBLEEntity, ButtonEntity):
 
 
 class TeslaForceUpdateButton(TeslaBLEEntity, ButtonEntity):
-    _attr_name = "Refresh data"
+    _attr_translation_key = "force_update"
     _attr_icon = "mdi:refresh"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
@@ -66,7 +65,7 @@ class TeslaForceUpdateButton(TeslaBLEEntity, ButtonEntity):
 
 
 class TeslaFlashLightsButton(TeslaBLEEntity, ButtonEntity):
-    _attr_name = "Flash lights"
+    _attr_translation_key = "flash_lights"
     _attr_icon = "mdi:car-light-high"
 
     def __init__(self, manager: TeslaBLEManager) -> None:
@@ -77,7 +76,7 @@ class TeslaFlashLightsButton(TeslaBLEEntity, ButtonEntity):
 
 
 class TeslaHonkHornButton(TeslaBLEEntity, ButtonEntity):
-    _attr_name = "Honk horn"
+    _attr_translation_key = "honk_horn"
     _attr_icon = "mdi:bullhorn"
 
     def __init__(self, manager: TeslaBLEManager) -> None:

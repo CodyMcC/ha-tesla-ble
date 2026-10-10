@@ -136,6 +136,8 @@ async def test_poll_updates_entities(hass: HomeAssistant, sim, monkeypatch, hass
 
     await settle_until(hass, lambda: manager.charge_state and manager.vehicle_status)
 
+    # User-visible entity ids stay stable (translation keys resolve to names).
+    assert hass.states.get("sensor.tesla_789abc_battery_level") is not None
     assert state_of(hass, "sensor", f"{VIN}_sensor_battery_level") == "55"
     assert state_of(hass, "sensor", f"{VIN}_sensor_charger_power") in ("unknown", None) or True
     assert distance_in_miles(hass, "sensor", f"{VIN}_sensor_odometer") == pytest.approx(1234.5, abs=0.1)
@@ -228,3 +230,32 @@ async def test_wedged_link_is_cycled(hass: HomeAssistant, sim, monkeypatch, hass
 
     assert manager.connected is False
     assert client.is_connected is False
+
+
+async def test_pairing_issue_when_no_key(hass: HomeAssistant, sim, monkeypatch, hass_storage, enable_bluetooth) -> None:
+    from homeassistant.helpers import issue_registry as ir
+
+    from custom_components.tesla_ble.const import ISSUE_PAIRING_REQUIRED
+
+    entry, _client = await setup_entry(hass, sim, monkeypatch, hass_storage, with_key=False)
+    registry = ir.async_get(hass)
+    assert registry.async_get_issue(DOMAIN, ISSUE_PAIRING_REQUIRED) is not None
+
+    # Pairing clears the issue.
+    manager = entry.runtime_data
+    manager._next_vcsec_poll = 0
+    await settle_until(hass, lambda: manager.connected)
+    button_id = er.async_get(hass).async_get_entity_id("button", DOMAIN, f"{VIN}_button_pair")
+    await hass.services.async_call("button", "press", {"entity_id": button_id}, blocking=True)
+    await settle_until(hass, lambda: manager._vehicle.pending_command_count == 0)
+
+    assert registry.async_get_issue(DOMAIN, ISSUE_PAIRING_REQUIRED) is None
+
+
+async def test_no_pairing_issue_with_key(hass: HomeAssistant, sim, monkeypatch, hass_storage, enable_bluetooth) -> None:
+    from homeassistant.helpers import issue_registry as ir
+
+    from custom_components.tesla_ble.const import ISSUE_PAIRING_REQUIRED
+
+    await setup_entry(hass, sim, monkeypatch, hass_storage)
+    assert ir.async_get(hass).async_get_issue(DOMAIN, ISSUE_PAIRING_REQUIRED) is None

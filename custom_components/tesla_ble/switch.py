@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from homeassistant.components.switch import SwitchEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -13,7 +12,7 @@ from .manager import CHARGING_ACTIVE_STATES, TeslaBLEManager
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: TeslaBLEConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     manager: TeslaBLEManager = entry.runtime_data
@@ -26,7 +25,7 @@ async def async_setup_entry(
 
 
 class TeslaChargingSwitch(TeslaBLEEntity, SwitchEntity):
-    _attr_name = "Charging"
+    _attr_translation_key = "charging"
     _attr_icon = "mdi:ev-station"
 
     def __init__(self, manager: TeslaBLEManager) -> None:
@@ -47,7 +46,7 @@ class TeslaChargingSwitch(TeslaBLEEntity, SwitchEntity):
 
 
 class TeslaSteeringWheelHeatSwitch(TeslaBLEEntity, SwitchEntity):
-    _attr_name = "Steering wheel heater"
+    _attr_translation_key = "steering_wheel_heat"
     _attr_icon = "mdi:steering"
 
     def __init__(self, manager: TeslaBLEManager) -> None:

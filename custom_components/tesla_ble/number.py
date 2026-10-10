@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from homeassistant.components.number import NumberDeviceClass, NumberEntity, NumberMode
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import PERCENTAGE, UnitOfElectricCurrent
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -14,7 +13,7 @@ from .manager import TeslaBLEManager
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: TeslaBLEConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     manager: TeslaBLEManager = entry.runtime_data
@@ -27,7 +26,7 @@ async def async_setup_entry(
 
 
 class TeslaChargingLimitNumber(TeslaBLEEntity, NumberEntity):
-    _attr_name = "Charge limit"
+    _attr_translation_key = "charge_limit"
     _attr_native_min_value = 50
     _attr_native_max_value = 100
     _attr_native_step = 1
@@ -47,7 +46,7 @@ class TeslaChargingLimitNumber(TeslaBLEEntity, NumberEntity):
 
 
 class TeslaChargingAmpsNumber(TeslaBLEEntity, NumberEntity):
-    _attr_name = "Charging amps"
+    _attr_translation_key = "charge_amps"
     _attr_native_min_value = 0
     _attr_native_step = 1
     _attr_native_unit_of_measurement = UnitOfElectricCurrent.AMPERE

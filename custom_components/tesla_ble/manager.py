@@ -9,6 +9,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.event import async_track_time_interval
 
 import tesla_ble
@@ -31,6 +32,7 @@ from .const import (
     DEFAULT_INFOTAINMENT_SLEEP_TIMEOUT,
     DEFAULT_VCSEC_POLL_INTERVAL,
     DOMAIN,
+    ISSUE_PAIRING_REQUIRED,
     TICK_INTERVAL,
 )
 
@@ -113,6 +115,7 @@ class TeslaBLEManager:
         self._tick_cancel = async_track_time_interval(self.hass, self._async_tick, TICK_INTERVAL)
         # First connection/poll shortly after setup.
         self._next_vcsec_poll = time.monotonic()
+        self._async_update_pairing_issue()
 
     async def async_shutdown(self) -> None:
         if self._tick_cancel is not None:
@@ -120,6 +123,22 @@ class TeslaBLEManager:
             self._tick_cancel = None
         await self._async_disconnect()
         await self._store.async_flush()
+
+    def _async_update_pairing_issue(self) -> None:
+        """Surface a repair issue while no key is paired with the vehicle."""
+        if self._vehicle is None:
+            return
+        if self._vehicle.has_private_key:
+            ir.async_delete_issue(self.hass, DOMAIN, ISSUE_PAIRING_REQUIRED)
+        else:
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                ISSUE_PAIRING_REQUIRED,
+                is_fixable=False,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key=ISSUE_PAIRING_REQUIRED,
+            )
 
     def async_add_listener(self, listener: Callable[[], None]) -> Callable[[], None]:
         self._listeners.append(listener)
@@ -283,6 +302,8 @@ class TeslaBLEManager:
                 text = f"{name}: failed ({result.error_message})"
             self.last_command = text
             _LOGGER.debug("Command result: %s", text)
+            if name == "Pair" and result.success:
+                self._async_update_pairing_issue()
             self._notify()
 
         return callback

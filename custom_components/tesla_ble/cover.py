@@ -7,7 +7,6 @@ from homeassistant.components.cover import (
     CoverEntity,
     CoverEntityFeature,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -17,7 +16,7 @@ from .manager import TeslaBLEManager
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: TeslaBLEConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     manager: TeslaBLEManager = entry.runtime_data
@@ -39,7 +38,7 @@ def _closure_open(manager: TeslaBLEManager, key: str) -> bool | None:
 
 
 class TeslaTrunkCover(TeslaBLEEntity, CoverEntity):
-    _attr_name = "Trunk"
+    _attr_translation_key = "trunk"
     _attr_device_class = CoverDeviceClass.DOOR
     _attr_supported_features = CoverEntityFeature.OPEN | CoverEntityFeature.CLOSE
 
@@ -59,7 +58,7 @@ class TeslaTrunkCover(TeslaBLEEntity, CoverEntity):
 
 
 class TeslaFrunkCover(TeslaBLEEntity, CoverEntity):
-    _attr_name = "Frunk"
+    _attr_translation_key = "frunk"
     _attr_device_class = CoverDeviceClass.DOOR
     _attr_supported_features = CoverEntityFeature.OPEN
 
@@ -76,7 +75,7 @@ class TeslaFrunkCover(TeslaBLEEntity, CoverEntity):
 
 
 class TeslaChargePortCover(TeslaBLEEntity, CoverEntity):
-    _attr_name = "Charge port door"
+    _attr_translation_key = "charge_port"
     _attr_supported_features = CoverEntityFeature.OPEN | CoverEntityFeature.CLOSE
 
     def __init__(self, manager: TeslaBLEManager) -> None:
@@ -97,7 +96,7 @@ class TeslaChargePortCover(TeslaBLEEntity, CoverEntity):
 
 
 class TeslaWindowsCover(TeslaBLEEntity, CoverEntity):
-    _attr_name = "Windows"
+    _attr_translation_key = "windows"
     _attr_device_class = CoverDeviceClass.WINDOW
     _attr_supported_features = CoverEntityFeature.OPEN | CoverEntityFeature.CLOSE
 

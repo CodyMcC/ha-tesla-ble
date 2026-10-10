@@ -3,8 +3,21 @@
 from __future__ import annotations
 
 from datetime import timedelta
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from homeassistant.config_entries import ConfigEntry
+
+    from .manager import TeslaBLEManager
+
+# Lazily evaluated alias (Python 3.12+ `type` statement): safe at runtime
+# without importing manager (avoids the const <-> manager cycle).
+type TeslaBLEConfigEntry = ConfigEntry[TeslaBLEManager]
 
 DOMAIN = "tesla_ble"
+
+# Issue registry keys
+ISSUE_PAIRING_REQUIRED = "pairing_required"
 
 # Tesla vehicle BLE GATT profile
 SERVICE_UUID = "00000211-b2d1-43f0-9b88-960cebf8b91e"

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from homeassistant.components.lock import LockEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -13,7 +12,7 @@ from .manager import TeslaBLEManager
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: TeslaBLEConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     manager: TeslaBLEManager = entry.runtime_data
@@ -21,7 +20,7 @@ async def async_setup_entry(
 
 
 class TeslaDoorsLock(TeslaBLEEntity, LockEntity):
-    _attr_name = "Doors"
+    _attr_translation_key = "doors"
 
     def __init__(self, manager: TeslaBLEManager) -> None:
         super().__init__(manager, "lock_doors")

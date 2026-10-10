@@ -6,14 +6,22 @@
       "service_uuid": "00000211-b2d1-43f0-9b88-960cebf8b91e"
     }
   ],
-  "codeowners": ["@yoziru"],
+  "codeowners": [
+    "@yoziru"
+  ],
   "config_flow": true,
-  "dependencies": ["bluetooth"],
+  "dependencies": [
+    "bluetooth"
+  ],
   "documentation": "https://github.com/yoziru/ha-tesla-ble",
   "integration_type": "device",
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/yoziru/ha-tesla-ble/issues",
-  "loggers": ["tesla_ble"],
-  "requirements": ["tesla-ble==0.1.0"],
-  "version": "0.1.0"
+  "loggers": [
+    "tesla_ble"
+  ],
+  "requirements": [
+    "tesla-ble==6.0.0"
+  ],
+  "version": "6.0.0"
 }

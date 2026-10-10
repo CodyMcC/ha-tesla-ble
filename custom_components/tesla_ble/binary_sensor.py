@@ -11,7 +11,6 @@ from homeassistant.components.binary_sensor import (
     BinarySensorEntity,
     BinarySensorEntityDescription,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -54,30 +53,25 @@ class TeslaBinarySensorDescription(BinarySensorEntityDescription):
 BINARY_SENSOR_DESCRIPTIONS: tuple[TeslaBinarySensorDescription, ...] = (
     TeslaBinarySensorDescription(
         key="asleep",
-        name="Asleep",
         value_fn=lambda m: m.vehicle_status.get("asleep"),
     ),
     TeslaBinarySensorDescription(
         key="charging",
-        name="Charging",
         value_fn=_is_charging,
         device_class=BinarySensorDeviceClass.BATTERY_CHARGING,
     ),
     TeslaBinarySensorDescription(
         key="charger_connected",
-        name="Charger connected",
         value_fn=_charger_connected,
         device_class=BinarySensorDeviceClass.PLUG,
     ),
     TeslaBinarySensorDescription(
         key="user_present",
-        name="User present",
         value_fn=lambda m: m.vehicle_status.get("user_present"),
         device_class=BinarySensorDeviceClass.PRESENCE,
     ),
     TeslaBinarySensorDescription(
         key="door_driver_front",
-        name="Door driver front",
         value_fn=lambda m: _closure(m, "front_driver_door"),
         device_class=BinarySensorDeviceClass.DOOR,
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -85,7 +79,6 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[TeslaBinarySensorDescription, ...] = (
     ),
     TeslaBinarySensorDescription(
         key="door_passenger_front",
-        name="Door passenger front",
         value_fn=lambda m: _closure(m, "front_passenger_door"),
         device_class=BinarySensorDeviceClass.DOOR,
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -93,7 +86,6 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[TeslaBinarySensorDescription, ...] = (
     ),
     TeslaBinarySensorDescription(
         key="door_driver_rear",
-        name="Door driver rear",
         value_fn=lambda m: _closure(m, "rear_driver_door"),
         device_class=BinarySensorDeviceClass.DOOR,
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -101,7 +93,6 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[TeslaBinarySensorDescription, ...] = (
     ),
     TeslaBinarySensorDescription(
         key="door_passenger_rear",
-        name="Door passenger rear",
         value_fn=lambda m: _closure(m, "rear_passenger_door"),
         device_class=BinarySensorDeviceClass.DOOR,
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -109,7 +100,6 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[TeslaBinarySensorDescription, ...] = (
     ),
     TeslaBinarySensorDescription(
         key="window_driver_front",
-        name="Window driver front",
         value_fn=lambda m: _window(m, "window_open_driver_front"),
         device_class=BinarySensorDeviceClass.WINDOW,
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -117,7 +107,6 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[TeslaBinarySensorDescription, ...] = (
     ),
     TeslaBinarySensorDescription(
         key="window_passenger_front",
-        name="Window passenger front",
         value_fn=lambda m: _window(m, "window_open_passenger_front"),
         device_class=BinarySensorDeviceClass.WINDOW,
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -125,7 +114,6 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[TeslaBinarySensorDescription, ...] = (
     ),
     TeslaBinarySensorDescription(
         key="window_driver_rear",
-        name="Window driver rear",
         value_fn=lambda m: _window(m, "window_open_driver_rear"),
         device_class=BinarySensorDeviceClass.WINDOW,
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -133,7 +121,6 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[TeslaBinarySensorDescription, ...] = (
     ),
     TeslaBinarySensorDescription(
         key="window_passenger_rear",
-        name="Window passenger rear",
         value_fn=lambda m: _window(m, "window_open_passenger_rear"),
         device_class=BinarySensorDeviceClass.WINDOW,
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -141,7 +128,6 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[TeslaBinarySensorDescription, ...] = (
     ),
     TeslaBinarySensorDescription(
         key="connection",
-        name="Bluetooth connection",
         value_fn=lambda m: m.connected,
         device_class=BinarySensorDeviceClass.CONNECTIVITY,
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -151,7 +137,7 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[TeslaBinarySensorDescription, ...] = (
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: TeslaBLEConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     manager: TeslaBLEManager = entry.runtime_data
@@ -166,7 +152,7 @@ class TeslaBinarySensor(TeslaBLEEntity, BinarySensorEntity):
     def __init__(self, manager: TeslaBLEManager, description: TeslaBinarySensorDescription) -> None:
         super().__init__(manager, f"binary_{description.key}")
         self.entity_description = description
-        self._attr_name = description.name
+        self._attr_translation_key = description.key
 
     @property
     def is_on(self) -> bool | None:

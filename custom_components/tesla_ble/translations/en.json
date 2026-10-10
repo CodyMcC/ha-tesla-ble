@@ -52,5 +52,162 @@
         }
       }
     }
+  },
+  "entity": {
+    "binary_sensor": {
+      "asleep": {
+        "name": "Asleep"
+      },
+      "charger_connected": {
+        "name": "Charger connected"
+      },
+      "charging": {
+        "name": "Charging"
+      },
+      "connection": {
+        "name": "Bluetooth connection"
+      },
+      "door_driver_front": {
+        "name": "Door driver front"
+      },
+      "door_driver_rear": {
+        "name": "Door driver rear"
+      },
+      "door_passenger_front": {
+        "name": "Door passenger front"
+      },
+      "door_passenger_rear": {
+        "name": "Door passenger rear"
+      },
+      "user_present": {
+        "name": "User present"
+      },
+      "window_driver_front": {
+        "name": "Window driver front"
+      },
+      "window_driver_rear": {
+        "name": "Window driver rear"
+      },
+      "window_passenger_front": {
+        "name": "Window passenger front"
+      },
+      "window_passenger_rear": {
+        "name": "Window passenger rear"
+      }
+    },
+    "button": {
+      "flash_lights": {
+        "name": "Flash lights"
+      },
+      "force_update": {
+        "name": "Refresh data"
+      },
+      "honk_horn": {
+        "name": "Honk horn"
+      },
+      "pair": {
+        "name": "Pair"
+      },
+      "wake": {
+        "name": "Wake"
+      }
+    },
+    "cover": {
+      "charge_port": {
+        "name": "Charge port door"
+      },
+      "frunk": {
+        "name": "Frunk"
+      },
+      "trunk": {
+        "name": "Trunk"
+      },
+      "windows": {
+        "name": "Windows"
+      }
+    },
+    "lock": {
+      "doors": {
+        "name": "Doors"
+      }
+    },
+    "number": {
+      "charge_amps": {
+        "name": "Charging amps"
+      },
+      "charge_limit": {
+        "name": "Charge limit"
+      }
+    },
+    "sensor": {
+      "battery_level": {
+        "name": "Battery level"
+      },
+      "battery_range": {
+        "name": "Battery range"
+      },
+      "charge_energy_added": {
+        "name": "Energy added"
+      },
+      "charge_limit_soc": {
+        "name": "Charge limit"
+      },
+      "charger_actual_current": {
+        "name": "Charger current"
+      },
+      "charger_power": {
+        "name": "Charger power"
+      },
+      "charger_voltage": {
+        "name": "Charger voltage"
+      },
+      "charging_state": {
+        "name": "Charging state"
+      },
+      "inside_temp": {
+        "name": "Inside temperature"
+      },
+      "last_command": {
+        "name": "Last command"
+      },
+      "minutes_to_full_charge": {
+        "name": "Time to full charge"
+      },
+      "odometer": {
+        "name": "Odometer"
+      },
+      "outside_temp": {
+        "name": "Outside temperature"
+      },
+      "shift_state": {
+        "name": "Shift state"
+      },
+      "tpms_front_left": {
+        "name": "Tire pressure front left"
+      },
+      "tpms_front_right": {
+        "name": "Tire pressure front right"
+      },
+      "tpms_rear_left": {
+        "name": "Tire pressure rear left"
+      },
+      "tpms_rear_right": {
+        "name": "Tire pressure rear right"
+      }
+    },
+    "switch": {
+      "charging": {
+        "name": "Charging"
+      },
+      "steering_wheel_heat": {
+        "name": "Steering wheel heater"
+      }
+    }
+  },
+  "issues": {
+    "pairing_required": {
+      "title": "Tesla BLE: pairing required",
+      "description": "No key is paired with this vehicle yet. Press the **Pair** button on the vehicle's device page, then tap a key card on the center console within about 30 seconds."
+    }
   }
 }
