@@ -244,6 +244,11 @@
       "sentry_mode": {
         "name": "Sentry mode"
       }
+    },
+    "climate": {
+      "climate": {
+        "name": "Climate"
+      }
     }
   },
   "issues": {

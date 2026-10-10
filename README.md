@@ -98,6 +98,11 @@ python scripts/carcheck.py --vin 5YJ... --pair     # then tap a key card
   command* sensor reports the result.
 - **Commands time out**: the vehicle may be asleep; press Wake first, or check
   the *Asleep* binary sensor.
+- **Multiple vehicles**: add the integration once per vehicle; each entry has
+  its own connection, storage and entities. The vehicle-side limit of ~3
+  simultaneous BLE connections is *per car* (phone apps, watches, Charge on
+  Solar) — the integration disconnects when idle to leave room, and one
+  vehicle never blocks another.
 
 ## License
 
