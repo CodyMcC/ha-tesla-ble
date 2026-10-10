@@ -1,0 +1,17 @@
+[project]
+name = "ha-tesla-ble-dev"
+version = "0.1.0"
+description = "Development tooling for the Tesla BLE Home Assistant integration"
+requires-python = ">=3.13"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+ignore = ["E501"]

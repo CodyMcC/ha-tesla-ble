@@ -1,0 +1,56 @@
+{
+  "config": {
+    "step": {
+      "bluetooth": {
+        "title": "Tesla vehicle discovered",
+        "description": "A Tesla vehicle ({name}) was discovered. Enter its VIN to continue."
+      },
+      "user": {
+        "title": "Add a Tesla vehicle",
+        "description": "Select a discovered vehicle or enter its Bluetooth address manually.",
+        "data": {
+          "address": "Vehicle"
+        }
+      },
+      "manual": {
+        "title": "Bluetooth address",
+        "description": "Enter the Bluetooth (MAC) address of your Tesla. You can find it in the vehicle's Bluetooth settings screen.",
+        "data": {
+          "address": "Bluetooth address"
+        }
+      },
+      "vin": {
+        "title": "Vehicle identification number",
+        "description": "Enter the 17-character VIN of the vehicle at {address}. The vehicle advertises itself as {expected_name}; currently seen as {advertised_name}.",
+        "data": {
+          "vin": "VIN"
+        }
+      }
+    },
+    "error": {
+      "invalid_vin": "That does not look like a valid VIN (17 characters, no I/O/Q).",
+      "invalid_address": "That does not look like a valid Bluetooth address (AA:BB:CC:DD:EE:FF).",
+      "name_mismatch": "The advertised name does not match this VIN. Check both and try again."
+    },
+    "abort": {
+      "already_configured": "This vehicle is already configured.",
+      "not_supported": "This Bluetooth device is not a Tesla vehicle."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Tesla BLE options",
+        "description": "Polling and connection tuning. Lower intervals keep the vehicle awake more often.",
+        "data": {
+          "vcsec_poll_interval": "Vehicle status poll interval (seconds)",
+          "infotainment_poll_interval_awake": "Awake poll interval (seconds)",
+          "infotainment_poll_interval_active": "Charging/sentry poll interval (seconds)",
+          "infotainment_sleep_timeout": "Idle time before backing off (seconds)",
+          "disconnect_delay": "Disconnect after idle (seconds)",
+          "charging_amps_max": "Maximum charging amps"
+        }
+      }
+    }
+  }
+}
