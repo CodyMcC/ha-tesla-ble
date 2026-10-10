@@ -4,6 +4,18 @@
   "bluetooth": [
     {
       "service_uuid": "00000211-b2d1-43f0-9b88-960cebf8b91e"
+    },
+    {
+      "service_uuid": "00001122-0000-1000-8000-00805f9b34fb"
+    },
+    {
+      "manufacturer_id": 76,
+      "manufacturer_data_start": [
+        2, 21, 116, 39, 139, 218, 182, 68, 69, 32, 143, 12, 114, 14, 175, 5, 153, 53
+      ]
+    },
+    {
+      "local_name": "Tesla ??????"
     }
   ],
   "codeowners": [

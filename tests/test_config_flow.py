@@ -10,15 +10,17 @@ import voluptuous as vol
 from homeassistant import config_entries, data_entry_flow
 from homeassistant.components import bluetooth
 
-from custom_components.tesla_ble.const import CONF_ADDRESS, CONF_VIN, DOMAIN
+from custom_components.tesla_ble.const import CONF_ADDRESS, CONF_PAIR_ON_SETUP, CONF_VIN, DOMAIN
 
 VIN = "5YJ30123456789ABC"
 ADDRESS = "AA:BB:CC:DD:EE:FF"
 ADVERTISED = "S1a87a5a75f3df858C"  # for a different VIN
 
 
-def _discovered(address: str, name: str) -> SimpleNamespace:
-    return SimpleNamespace(address=address, name=name)
+def _discovered(address: str, name: str | None, **extra) -> SimpleNamespace:
+    fields = {"service_uuids": set(), "service_data": {}, "manufacturer_data": {}}
+    fields.update(extra)
+    return SimpleNamespace(address=address, name=name, **fields)
 
 
 async def test_manual_flow_creates_entry(hass) -> None:
@@ -31,8 +33,12 @@ async def test_manual_flow_creates_entry(hass) -> None:
     assert result["step_id"] == "vin"
 
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_VIN: VIN})
+    assert result["type"] == data_entry_flow.FlowResultType.FORM
+    assert result["step_id"] == "pair"
+
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
     assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
-    assert result["data"] == {CONF_VIN: VIN, CONF_ADDRESS: ADDRESS}
+    assert result["data"] == {CONF_VIN: VIN, CONF_ADDRESS: ADDRESS, CONF_PAIR_ON_SETUP: True}
     assert result["title"] == "Tesla 789ABC"
 
 
@@ -89,8 +95,27 @@ async def test_bluetooth_discovery_flow(hass) -> None:
     assert result["step_id"] == "vin"
 
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_VIN: vin})
+    assert result["step_id"] == "pair"
+
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
     assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
     assert result["data"][CONF_VIN] == vin
+
+
+async def test_bluetooth_discovery_accepts_beacon_without_name(hass) -> None:
+    """Passive-only scanners may forward the iBeacon payload without a name."""
+    info = _discovered(
+        ADDRESS,
+        None,
+        manufacturer_data={76: bytes.fromhex("021574278bdab64445208f0c720eaf05993501009970c5")},
+    )
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_BLUETOOTH},
+        data=info,
+    )
+    assert result["type"] == data_entry_flow.FlowResultType.FORM
+    assert result["step_id"] == "vin"
 
 
 async def test_bluetooth_discovery_ignores_other_devices(hass) -> None:

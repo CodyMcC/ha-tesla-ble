@@ -10,6 +10,7 @@ from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Any
 
+from homeassistant.components import persistent_notification
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import issue_registry as ir
@@ -25,6 +26,7 @@ from .const import (
     CONF_INFOTAINMENT_POLL_INTERVAL_ACTIVE,
     CONF_INFOTAINMENT_POLL_INTERVAL_AWAKE,
     CONF_INFOTAINMENT_SLEEP_TIMEOUT,
+    CONF_PAIR_ON_SETUP,
     CONF_VCSEC_POLL_INTERVAL,
     CONF_VIN,
     CONNECT_RETRY_BACKOFF,
@@ -90,6 +92,9 @@ class TeslaBLEManager:
         self._tick_cancel: Callable[[], None] | None = None
         self._stop_cancel: Callable[[], None] | None = None
         self._next_vcsec_poll = 0.0
+        self._pairing_notification_id = f"{DOMAIN}_pairing_{entry.entry_id}"
+        self._pairing_pending = False
+        self._pairing_tasks: set[asyncio.Task] = set()
 
         from .storage import TeslaStore
 
@@ -126,6 +131,8 @@ class TeslaBLEManager:
         self._next_vcsec_poll = time.monotonic()
         ir.async_delete_issue(self.hass, DOMAIN, ISSUE_PAIRING_REQUIRED)
         self._async_update_pairing_issue()
+        if self.entry.data.get(CONF_PAIR_ON_SETUP):
+            self._consume_pair_on_setup()
 
     def _create_vehicle(self) -> None:
         self._vehicle = tesla_ble.Vehicle(self._ble_adapter, self._store)
@@ -171,7 +178,10 @@ class TeslaBLEManager:
         tasks = list(self._tasks - {asyncio.current_task()})
         for task in tasks:
             task.cancel()
-        await asyncio.gather(*tasks, return_exceptions=True)
+        pairing_tasks = list(self._pairing_tasks)
+        for task in pairing_tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, *pairing_tasks, return_exceptions=True)
         try:
             await self._async_disconnect()
             await self._store.async_flush()
@@ -181,6 +191,9 @@ class TeslaBLEManager:
             self._vehicle = None
             self._listeners.clear()
             ir.async_delete_issue(self.hass, DOMAIN, self._issue_id)
+            if self._pairing_pending:
+                self._pairing_pending = False
+                persistent_notification.async_dismiss(self.hass, self._pairing_notification_id)
 
     async def _async_stop(self, _event: Any) -> None:
         await self.async_shutdown()
@@ -205,6 +218,49 @@ class TeslaBLEManager:
                 severity=ir.IssueSeverity.WARNING,
                 translation_key=ISSUE_PAIRING_REQUIRED,
                 translation_placeholders={"vehicle": self.device_name},
+            )
+
+    # ------------------------------------------------------------------
+    # Pairing
+    # ------------------------------------------------------------------
+
+    def _async_notify_pairing(self, message: str) -> None:
+        persistent_notification.async_create(
+            self.hass,
+            message,
+            title=f"{self.device_name}: pairing",
+            notification_id=self._pairing_notification_id,
+        )
+
+    def _async_notify_paired(self) -> None:
+        self._pairing_pending = False
+        self._async_notify_pairing(
+            f"{self.device_name} is paired with Home Assistant and can now be controlled "
+            "over Bluetooth."
+        )
+
+    def _consume_pair_on_setup(self) -> None:
+        """Pair once right after the entry is added, when the flow requested it.
+
+        The flag stays in the entry data; the key check makes it inert after
+        the first attempt (which always generates the vehicle key first), so
+        a restart never re-triggers a pairing session.
+        """
+        if self.paired or self._vehicle is None or self._vehicle.has_private_key or self._stopped:
+            return
+        task = self.hass.async_create_task(self._async_pair_on_setup())
+        self._pairing_tasks.add(task)
+        task.add_done_callback(self._pairing_tasks.discard)
+
+    async def _async_pair_on_setup(self) -> None:
+        try:
+            await self.async_pair()
+        except Exception as err:  # noqa: BLE001 - background task reports its own failure
+            _LOGGER.warning("Initial pairing could not start: %s", err)
+            self._pairing_pending = False
+            self._async_notify_pairing(
+                f"Pairing could not start: {err}. Make sure the vehicle is awake and in "
+                "range of Bluetooth, then press the Pair button on the device page."
             )
 
     def async_add_listener(self, listener: Callable[[], None]) -> Callable[[], None]:
@@ -240,6 +296,8 @@ class TeslaBLEManager:
         confirmed = self._vehicle.has_private_key and self._store.load("paired_key") == self._key_id()
         if self.paired != confirmed:
             self.paired = confirmed
+            if confirmed and self._pairing_pending:
+                self._async_notify_paired()
             self._async_update_pairing_issue()
 
     def _mark_paired(self) -> None:
@@ -418,6 +476,14 @@ class TeslaBLEManager:
             if name == "Pair":
                 if result.success:
                     self._mark_paired()
+                    self._async_notify_paired()
+                else:
+                    self._pairing_pending = False
+                    self._async_notify_pairing(
+                        f"Pairing failed: {result.error_message}. Make sure the vehicle is "
+                        "awake and in range of Bluetooth, then press the Pair button on the "
+                        "device page to try again."
+                    )
                 self._async_update_pairing_issue()
             self._notify()
 
@@ -444,6 +510,11 @@ class TeslaBLEManager:
             await self._async_ensure_connected()
             self._last_activity = time.monotonic()
             self.last_command = "Pair: waiting for key card tap"
+            self._pairing_pending = True
+            self._async_notify_pairing(
+                f"Tap a key card on the console of {self.device_name} to authorize Home "
+                "Assistant. The request times out after about 30 seconds."
+            )
             self._notify()
             self._vehicle.pair(tesla_ble.KeysRole.OWNER, self._make_result_callback("Pair"))
             await self._transport.async_flush()

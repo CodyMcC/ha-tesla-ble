@@ -48,9 +48,11 @@ use `--wake` first if an awake snapshot is needed. Failed/incomplete requests
 return a nonzero exit code. Debug logs and snapshots may contain private data.
 
 1. **Local HA adapter:** install the current bindings into the HA Python
-   environment, copy `custom_components/tesla_ble`, restart HA, add the vehicle
-   and press Pair before tapping the card. Confirm the correct vehicle's repair
-   warning clears and telemetry arrives.
+   environment, copy `custom_components/tesla_ble`, restart HA, add the vehicle.
+   Pairing starts automatically; hold a key card against the console reader when
+   the notification prompts. If the vehicle was not reachable at setup, press
+   **Pair** on its device page — progress and results arrive as persistent
+   notifications. Confirm the repair warning clears and telemetry arrives.
 2. **Stock ESPHome proxy:** repeat using a stock proxy with active Bluetooth
    connections enabled and a free connection slot. Check subscription and full
    polling, not just advertisement discovery. Release the local connection first.

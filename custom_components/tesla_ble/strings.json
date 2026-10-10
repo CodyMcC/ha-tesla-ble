@@ -26,10 +26,14 @@
       },
       "vin": {
         "title": "Vehicle identification number",
-        "description": "Enter the 17-character VIN of the vehicle at {address}. The vehicle advertises itself as {expected_name}; currently seen as {advertised_name}.",
+        "description": "Enter the 17-character VIN of the vehicle at {address}. You can find it on the windshield, in the vehicle under Controls → Software, or on your registration.",
         "data": {
           "vin": "VIN"
         }
+      },
+      "pair": {
+        "title": "Pair with your vehicle",
+        "description": "Home Assistant needs its own key on the vehicle before it can send commands. Pairing installs the key, and the vehicle approves it when you tap a key card on the center console.\n\n1. Make sure the vehicle is awake and in Bluetooth range.\n2. Press **Submit**, then hold a key card against the center console within 30 seconds.\n\nIf pairing fails or the vehicle is not nearby right now, you can retry anytime with the **Pair** button on the vehicle's device page."
       }
     },
     "error": {

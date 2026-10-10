@@ -38,11 +38,15 @@ ESPHome Bluetooth proxies for range.
    repository URL, category *Integration*.
 2. Install "Tesla BLE" and restart Home Assistant.
 3. *Settings → Devices & Services → Add Integration → Tesla BLE*.
-   The vehicle is usually discovered automatically once its Bluetooth
-   advertisement is seen; otherwise enter the VIN and the Bluetooth address
-   (from HA's Bluetooth advertisement monitor or `scripts/carcheck.py --scan`).
-4. If this is a new key: open the vehicle's device page and press **Pair**,
-   then tap a key card on the center console reader.
+   The vehicle is discovered automatically from its Bluetooth advertisement;
+   pick it, enter the VIN, then follow the pairing step. If it is not
+   discovered (e.g. only passive scanners are nearby), enter the VIN and the
+   Bluetooth address manually (from HA's Bluetooth advertisement monitor or
+   `scripts/carcheck.py --scan`).
+4. Pairing starts right after the vehicle is added: hold a key card against
+   the center console reader when prompted. If the vehicle was not reachable,
+   press **Pair** on its device page to retry — progress and the result are
+   shown as persistent notifications.
 
 > **Until `tesla-ble` is published to PyPI**, Home Assistant cannot install the
 > requirement automatically. Build and install it first (from the repository
@@ -117,7 +121,10 @@ See [TESTING.md](TESTING.md) for offline checks and a staged hardware checklist.
   (Settings → Devices & Services → Bluetooth → *Advertisement monitor*), that a
   Bluetooth proxy is in range, and that the Tesla/Tessie phone apps are not
   holding the (max. 3) BLE connections. Legacy Model S/X (pre-2021) are not
-  supported.
+  supported. If the car was scanned by BlueZ *before* this integration was
+  installed, its unchanged advertisement may never be re-emitted; clear the
+  stale entry once with `bluetoothctl remove <car-mac>` and the car is
+  rediscovered on the next advertisement.
 - **Pairing fails**: press Pair, then tap the card within ~30 s. The *Last
   command* sensor reports the result.
 - **Commands time out**: the vehicle may be asleep; press Wake first, or check

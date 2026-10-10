@@ -21,6 +21,7 @@ from .const import (
     CONF_INFOTAINMENT_POLL_INTERVAL_ACTIVE,
     CONF_INFOTAINMENT_POLL_INTERVAL_AWAKE,
     CONF_INFOTAINMENT_SLEEP_TIMEOUT,
+    CONF_PAIR_ON_SETUP,
     CONF_VCSEC_POLL_INTERVAL,
     CONF_VIN,
     DEFAULT_CHARGING_AMPS_MAX,
@@ -40,6 +41,9 @@ from .const import (
     MIN_INFOTAINMENT_POLL_INTERVAL,
     MIN_SLEEP_TIMEOUT,
     MIN_VCSEC_POLL_INTERVAL,
+    SERVICE_UUID,
+    TESLA_BEACON_DATA_PREFIX,
+    TESLA_BEACON_MANUFACTURER_ID,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -56,6 +60,21 @@ def _normalize_address(value: str) -> str:
     return value.strip().upper().replace("-", ":")
 
 
+def _is_tesla_advert(info: BluetoothServiceInfoBleak) -> bool:
+    """Whether an advertisement that matched a discovery matcher is a Tesla.
+
+    Accepts the advertised (VIN-hash or "Tesla <vin suffix>") name scheme,
+    the GATT service UUID when a vehicle exposes it in its advertisement, or
+    the VCSEC iBeacon signature that passive-only scanners still forward.
+    """
+    if tesla_ble.is_tesla_vehicle_name(info.name or ""):
+        return True
+    if SERVICE_UUID in info.service_uuids:
+        return True
+    beacon = info.manufacturer_data.get(TESLA_BEACON_MANUFACTURER_ID, b"")
+    return beacon.startswith(TESLA_BEACON_DATA_PREFIX)
+
+
 class TeslaBLEConfigFlow(ConfigFlow, domain=DOMAIN):
     """Add a Tesla vehicle, discovered over Bluetooth or entered manually."""
 
@@ -64,15 +83,16 @@ class TeslaBLEConfigFlow(ConfigFlow, domain=DOMAIN):
     def __init__(self) -> None:
         self._address: str | None = None
         self._advertised_name: str | None = None
+        self._vin: str | None = None
         self._discovered: dict[str, str] = {}
 
     async def async_step_bluetooth(self, discovery_info: BluetoothServiceInfoBleak) -> ConfigFlowResult:
-        """A Bluetooth advertisement matched the Tesla service UUID."""
-        if not tesla_ble.is_tesla_vehicle_name(discovery_info.name or ""):
+        """A Bluetooth advertisement matched a Tesla discovery matcher."""
+        if not _is_tesla_advert(discovery_info):
             return self.async_abort(reason="not_supported")
         self._address = discovery_info.address
         self._advertised_name = discovery_info.name
-        self.context["title_placeholders"] = {"name": discovery_info.name}
+        self.context["title_placeholders"] = {"name": discovery_info.name or "Tesla vehicle"}
         return await self.async_step_vin()
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
@@ -154,10 +174,8 @@ class TeslaBLEConfigFlow(ConfigFlow, domain=DOMAIN):
                 if self._advertised_name and not tesla_ble.matches_vin(self._advertised_name, vin):
                     errors[CONF_VIN] = "name_mismatch"
                 if not errors:
-                    return self.async_create_entry(
-                        title=f"Tesla {vin[-6:]}",
-                        data={CONF_VIN: vin, CONF_ADDRESS: self._address},
-                    )
+                    self._vin = vin
+                    return await self.async_step_pair()
 
         return self.async_show_form(
             step_id="vin",
@@ -165,6 +183,20 @@ class TeslaBLEConfigFlow(ConfigFlow, domain=DOMAIN):
             errors=errors,
             description_placeholders=placeholders,
         )
+
+    async def async_step_pair(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Explain pairing; the entry pairs automatically once it is added."""
+        if user_input is not None:
+            assert self._vin is not None and self._address is not None
+            return self.async_create_entry(
+                title=f"Tesla {self._vin[-6:]}",
+                data={
+                    CONF_VIN: self._vin,
+                    CONF_ADDRESS: self._address,
+                    CONF_PAIR_ON_SETUP: True,
+                },
+            )
+        return self.async_show_form(step_id="pair", data_schema=vol.Schema({}))
 
     @staticmethod
     @callback

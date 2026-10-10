@@ -24,9 +24,18 @@ SERVICE_UUID = "00000211-b2d1-43f0-9b88-960cebf8b91e"
 WRITE_UUID = "00000212-b2d1-43f0-9b88-960cebf8b91e"
 READ_UUID = "00000213-b2d1-43f0-9b88-960cebf8b91e"
 
+# VCSEC advertisements carry an Apple-format iBeacon: the constant Tesla
+# proximity UUID (major/minor identify the vehicle) so phones can detect the
+# car in the background. The GATT service UUID above only appears after
+# connecting, so discovery matches this beacon signature instead.
+TESLA_BEACON_MANUFACTURER_ID = 76
+TESLA_BEACON_DATA_PREFIX = bytes.fromhex("021574278bdab64445208f0c720eaf059935")
+
 # Config entry data
 CONF_VIN = "vin"
 CONF_ADDRESS = "address"
+# One-shot flag set by the config flow: pair right after the entry is added.
+CONF_PAIR_ON_SETUP = "pair_on_setup"
 
 # Options
 CONF_VCSEC_POLL_INTERVAL = "vcsec_poll_interval"

@@ -19,12 +19,13 @@ import pytest
 import tesla_ble
 from conftest import TEST_PRIVATE_KEY_PEM
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
 
 from custom_components.tesla_ble import ble as ble_module
-from custom_components.tesla_ble.const import CONF_ADDRESS, CONF_VIN, DOMAIN
+from custom_components.tesla_ble.const import CONF_ADDRESS, CONF_PAIR_ON_SETUP, CONF_VIN, DOMAIN
 
 VIN = "5YJ30123456789ABC"
 ADDRESS = "AA:BB:CC:DD:EE:FF"
@@ -78,10 +79,14 @@ async def setup_entry(
     monkeypatch,
     hass_storage,
     with_key: bool = True,
+    pair_on_setup: bool = False,
+    reachable: bool = True,
 ) -> tuple:
     client = FakeGattClient(sim)
 
     async def establish(_class, _device, _name, **kwargs):
+        if not reachable:
+            raise HomeAssistantError("test: vehicle not reachable")
         client.is_connected = True
         client._on_disconnect = kwargs["disconnected_callback"]
         return client
@@ -91,7 +96,10 @@ async def setup_entry(
     monkeypatch.setattr(bluetooth, "async_ble_device_from_address", lambda *a, **kw: SimpleNamespace(address=ADDRESS, name="Tesla"))
     monkeypatch.setattr(ble_module, "establish_connection", establish)
 
-    entry = MockConfigEntry(domain=DOMAIN, data={CONF_VIN: VIN, CONF_ADDRESS: ADDRESS}, unique_id=VIN)
+    data = {CONF_VIN: VIN, CONF_ADDRESS: ADDRESS}
+    if pair_on_setup:
+        data[CONF_PAIR_ON_SETUP] = True
+    entry = MockConfigEntry(domain=DOMAIN, data=data, unique_id=VIN)
     if with_key:
         key = TEST_PRIVATE_KEY_PEM.encode() + b"\x00"
         hass_storage[f"{DOMAIN}.{entry.entry_id}"] = {
@@ -285,6 +293,49 @@ async def test_no_pairing_issue_with_key(hass: HomeAssistant, sim, monkeypatch, 
     entry, _ = await setup_entry(hass, sim, monkeypatch, hass_storage)
     await settle_until(hass, lambda: bool(entry.runtime_data.charge_state))
     assert ir.async_get(hass).async_get_issue(DOMAIN, f"{ISSUE_PAIRING_REQUIRED}_{entry.entry_id}") is None
+
+
+async def test_setup_pairs_automatically(hass: HomeAssistant, sim, monkeypatch, hass_storage, enable_bluetooth) -> None:
+    """The pairing step of onboarding hands off to a single automatic attempt."""
+    from homeassistant.components import persistent_notification
+
+    notifications: list[str] = []
+    monkeypatch.setattr(
+        persistent_notification,
+        "async_create",
+        lambda hass, message, title=None, notification_id=None: notifications.append(message),
+    )
+
+    entry, _client = await setup_entry(hass, sim, monkeypatch, hass_storage, with_key=False, pair_on_setup=True)
+    manager = entry.runtime_data
+    await settle_until(hass, lambda: manager.paired)
+
+    assert state_of(hass, "sensor", f"{VIN}_sensor_last_command") == "Pair: ok"
+    assert any("key card" in message for message in notifications)
+    assert any("paired" in message.lower() for message in notifications)
+
+
+async def test_setup_pairing_reports_unreachable_vehicle(
+    hass: HomeAssistant, sim, monkeypatch, hass_storage, enable_bluetooth
+) -> None:
+    from homeassistant.components import persistent_notification
+
+    notifications: list[str] = []
+    monkeypatch.setattr(
+        persistent_notification,
+        "async_create",
+        lambda hass, message, title=None, notification_id=None: notifications.append(message),
+    )
+
+    entry, _client = await setup_entry(
+        hass, sim, monkeypatch, hass_storage, with_key=False, pair_on_setup=True, reachable=False
+    )
+    manager = entry.runtime_data
+    await settle_until(hass, lambda: any("could not start" in message.lower() for message in notifications))
+
+    assert manager.paired is False
+    # The attempt generated the vehicle key, so restarts no longer auto-pair.
+    assert manager._vehicle.has_private_key
 
 
 VIN2 = "5YJ30123456789DEF"
