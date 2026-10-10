@@ -69,7 +69,6 @@ class TeslaBLEManager:
         self.connected = False
 
         self._listeners: list[Callable[[], None]] = []
-        self._pending_commands = 0
         self._last_activity = 0.0
         self._connect_blocked_until = 0.0
         self._connect_lock = asyncio.Lock()
@@ -220,8 +219,15 @@ class TeslaBLEManager:
 
     async def _async_tick(self, _now: Any) -> None:
         if self._transport.is_connected:
-            self._vehicle.loop()
-            await self._transport.async_flush()
+            if self._vehicle is not None and not self._vehicle.is_connected:
+                # The library reset its sessions (e.g. auth stall) while the
+                # GATT link is still up. Cycle the link so the next poll
+                # re-authenticates on a fresh connection.
+                _LOGGER.debug("Vehicle reset its session; cycling the BLE link")
+                await self._async_disconnect()
+            else:
+                self._vehicle.loop()
+                await self._transport.async_flush()
         await self._async_handle_polls()
         await self._async_handle_idle_disconnect()
 
@@ -256,7 +262,9 @@ class TeslaBLEManager:
         await self._transport.async_flush()
 
     async def _async_handle_idle_disconnect(self) -> None:
-        if not self._transport.is_connected or self._pending_commands > 0:
+        if not self._transport.is_connected:
+            return
+        if self._vehicle is not None and self._vehicle.pending_command_count > 0:
             return
         if time.monotonic() - self._last_activity >= self.disconnect_delay:
             await self._async_disconnect()
@@ -267,7 +275,6 @@ class TeslaBLEManager:
 
     def _make_result_callback(self, name: str) -> Callable[[tesla_ble.CommandResult], None]:
         def callback(result: tesla_ble.CommandResult) -> None:
-            self._pending_commands = max(0, self._pending_commands - 1)
             if result.success:
                 text = f"{name}: ok"
             elif result.skipped:
@@ -276,9 +283,6 @@ class TeslaBLEManager:
                 text = f"{name}: failed ({result.error_message})"
             self.last_command = text
             _LOGGER.debug("Command result: %s", text)
-            if result.success:
-                # Ask for fresh state on the next tick.
-                self._next_vcsec_poll = 0.0
             self._notify()
 
         return callback
@@ -287,21 +291,15 @@ class TeslaBLEManager:
         """Run a vehicle command, connecting first if needed."""
         await self.async_ensure_connected()
         self._last_activity = time.monotonic()
-        self._pending_commands += 1
         self.last_command = f"{name}: pending"
         self._notify()
-        try:
-            action(self._make_result_callback(name))
-        except Exception:
-            self._pending_commands = max(0, self._pending_commands - 1)
-            raise
+        action(self._make_result_callback(name))
         await self._transport.async_flush()
 
     async def async_pair(self) -> None:
         """Send the whitelist-add request; tap a key card on the console next."""
         await self.async_ensure_connected()
         self._last_activity = time.monotonic()
-        self._pending_commands += 1
         self.last_command = "Pair: waiting for key card tap"
         self._notify()
         self._vehicle.pair(tesla_ble.KeysRole.OWNER, self._make_result_callback("Pair"))

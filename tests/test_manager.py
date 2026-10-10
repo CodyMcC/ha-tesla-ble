@@ -72,6 +72,8 @@ async def setup_entry(
         await client.start_notify(ble_module.READ_UUID, self._handle_notification)
 
     async def fake_disconnect(self) -> None:
+        if self._client is not None:
+            await self._client.disconnect()
         self._client = None
 
     monkeypatch.setattr(ble_module.TeslaBleTransport, "connect", fake_connect)
@@ -155,7 +157,7 @@ async def test_lock_service_completes(hass: HomeAssistant, sim, monkeypatch, has
 
     lock_id = er.async_get(hass).async_get_entity_id("lock", DOMAIN, f"{VIN}_lock_doors")
     await hass.services.async_call("lock", "lock", {"entity_id": lock_id}, blocking=True)
-    await settle_until(hass, lambda: manager._pending_commands == 0)
+    await settle_until(hass, lambda: manager._vehicle.pending_command_count == 0)
 
     assert state_of(hass, "sensor", f"{VIN}_sensor_last_command") == "Lock: ok"
 
@@ -169,7 +171,7 @@ async def test_charging_switch_completes(hass: HomeAssistant, sim, monkeypatch, 
 
     switch_id = er.async_get(hass).async_get_entity_id("switch", DOMAIN, f"{VIN}_switch_charging")
     await hass.services.async_call("switch", "turn_on", {"entity_id": switch_id}, blocking=True)
-    await settle_until(hass, lambda: manager._pending_commands == 0)
+    await settle_until(hass, lambda: manager._vehicle.pending_command_count == 0)
 
     assert state_of(hass, "sensor", f"{VIN}_sensor_last_command") == "Start Charging: ok"
 
@@ -182,7 +184,7 @@ async def test_pair_button_persists_key(hass: HomeAssistant, sim, monkeypatch, h
 
     button_id = er.async_get(hass).async_get_entity_id("button", DOMAIN, f"{VIN}_button_pair")
     await hass.services.async_call("button", "press", {"entity_id": button_id}, blocking=True)
-    await settle_until(hass, lambda: manager._pending_commands == 0)
+    await settle_until(hass, lambda: manager._vehicle.pending_command_count == 0)
 
     assert state_of(hass, "sensor", f"{VIN}_sensor_last_command") == "Pair: ok"
     assert manager._store.load("private_key") is not None
@@ -211,3 +213,18 @@ async def test_unload_disconnects(hass: HomeAssistant, sim, monkeypatch, hass_st
     assert await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
     assert not manager.connected
+
+
+async def test_wedged_link_is_cycled(hass: HomeAssistant, sim, monkeypatch, hass_storage, enable_bluetooth) -> None:
+    """If the library resets its session while GATT stays up, cycle the link."""
+    entry, client = await setup_entry(hass, sim, monkeypatch, hass_storage)
+    manager = entry.runtime_data
+    manager._next_vcsec_poll = 0
+    await settle_until(hass, lambda: manager.connected)
+
+    # Simulate the library's auth-stall watchdog resetting its own connection.
+    manager._vehicle.set_connected(False)
+    await settle_until(hass, lambda: not manager.connected)
+
+    assert manager.connected is False
+    assert client.is_connected is False

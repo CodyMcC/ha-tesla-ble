@@ -37,10 +37,8 @@ def _charger_connected(manager: TeslaBLEManager) -> bool | None:
 
 
 def _closure(manager: TeslaBLEManager, key: str) -> bool | None:
-    value = manager.vehicle_status.get("closures", {}).get(key)
-    if value is None:
-        return None
-    return value in ("open", "ajar", "opening")
+    raw = manager.vehicle_status.get("closures_raw", {}).get(key)
+    return None if raw is None else tesla_ble.closure_is_open(raw)
 
 
 def _window(manager: TeslaBLEManager, key: str) -> bool | None:
