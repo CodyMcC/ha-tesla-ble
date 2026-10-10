@@ -45,15 +45,16 @@ ESPHome Bluetooth proxies for range.
    then tap a key card on the center console reader.
 
 > **Until `tesla-ble` is published to PyPI**, Home Assistant cannot install the
-> requirement automatically. Build and install it first:
+> requirement automatically. Build and install it first (from the repository
+> root; requires a C++23 compiler and Python ≥ 3.13):
 >
 > ```sh
-> pip install /path/to/tesla-ble/bindings/python
+> uv sync --project /path/to/tesla-ble
+> uv pip install --python <HA-venv>/bin/python /path/to/tesla-ble
 > ```
 >
-> (or `uv pip install` inside the Home Assistant virtualenv). The wheel needs a
-> C++ compiler and Python ≥ 3.13; prebuilt wheels for common platforms are on
-> the roadmap.
+> Prebuilt wheels for common platforms are on the roadmap (cibuildwheel
+> workflow is in the repository).
 
 ## Testing without Home Assistant
 
