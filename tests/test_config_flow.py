@@ -118,6 +118,17 @@ async def test_bluetooth_discovery_accepts_beacon_without_name(hass) -> None:
     assert result["step_id"] == "vin"
 
 
+async def test_bluetooth_discovery_flow_can_be_ignored(hass) -> None:
+    """Discovery flows need a unique ID for the Ignore action to work."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_BLUETOOTH},
+        data=_discovered(ADDRESS, ADVERTISED),
+    )
+    flow = next(f for f in hass.config_entries.flow.async_progress() if f["flow_id"] == result["flow_id"])
+    assert flow["context"].get("unique_id") == ADDRESS
+
+
 async def test_bluetooth_discovery_ignores_other_devices(hass) -> None:
     result = await hass.config_entries.flow.async_init(
         DOMAIN,

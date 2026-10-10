@@ -33,7 +33,7 @@
       },
       "pair": {
         "title": "Pair with your vehicle",
-        "description": "Home Assistant needs its own key on the vehicle before it can send commands. Pairing installs the key, and the vehicle approves it when you tap a key card on the center console.\n\n1. Make sure the vehicle is awake and in Bluetooth range.\n2. Press **Submit**, then hold a key card against the center console within 30 seconds.\n\nIf pairing fails or the vehicle is not nearby right now, you can retry anytime with the **Pair** button on the vehicle's device page."
+        "description": "Home Assistant needs its own key on the vehicle before it can send commands. Pairing installs the key, and the vehicle approves it when you tap a key card on the center console.\n\n1. Make sure the vehicle is awake and in Bluetooth range.\n2. Press **Submit**, then hold a key card against the center console.\n3. Confirm the key on the vehicle's touchscreen, then remove the card.\n\nIf pairing fails or the vehicle is not nearby right now, you can retry anytime with the **Pair** button on the vehicle's device page."
       }
     },
     "error": {
@@ -194,6 +194,9 @@
       },
       "last_command": {
         "name": "Last command"
+      },
+      "ble_signal": {
+        "name": "BLE signal"
       },
       "minutes_to_full_charge": {
         "name": "Time to full charge"

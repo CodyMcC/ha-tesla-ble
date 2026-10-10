@@ -269,6 +269,13 @@ SENSOR_DESCRIPTIONS: tuple[TeslaSensorDescription, ...] = (
         value_fn=lambda m: m.last_command,
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    TeslaSensorDescription(
+        key="ble_signal",
+        state=None,
+        value_fn=lambda m: m.rssi,
+        device_class=SensorDeviceClass.SIGNAL_STRENGTH,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
 )
 
 

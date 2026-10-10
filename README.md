@@ -78,7 +78,7 @@ python scripts/carcheck.py --vin 5YJ... --pair     # then tap a key card
 
 | Platform | Examples |
 | --- | --- |
-| `sensor` | battery level, range, charger power/voltage/current, charge limit, odometer, temperatures, tire pressures, charging state, shift state, last command |
+| `sensor` | battery level, range, charger power/voltage/current, charge limit, odometer, temperatures, tire pressures, charging state, shift state, last command, BLE signal |
 | `binary_sensor` | asleep, charging, charger connected, user present, doors, windows, Bluetooth connection |
 | `lock` | doors |
 | `switch` | charging, steering wheel heater |

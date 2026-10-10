@@ -78,6 +78,7 @@ class TeslaBLEManager:
         self.tire_pressure_state: dict[str, Any] = {}
         self.last_command: str | None = None
         self.connected = False
+        self.rssi: int | None = None
 
         self._listeners: list[Callable[[], None]] = []
         self._last_activity = 0.0
@@ -415,8 +416,18 @@ class TeslaBLEManager:
             else:
                 self._vehicle.loop()
                 await self._transport.async_flush()
+        self._update_rssi()
         await self._async_handle_polls()
         await self._async_handle_idle_disconnect()
+
+    def _update_rssi(self) -> None:
+        from homeassistant.components import bluetooth
+
+        info = bluetooth.async_last_service_info(self.hass, self.address, connectable=True)
+        rssi = info.rssi if info is not None else None
+        if rssi != self.rssi:
+            self.rssi = rssi
+            self._notify()
 
     def _infotainment_poll_decision(self, now_ms: int) -> dict[str, Any]:
         is_asleep = self.state_available("vehicle_status") and bool(self.vehicle_status.get("asleep", False))
@@ -512,8 +523,9 @@ class TeslaBLEManager:
             self.last_command = "Pair: waiting for key card tap"
             self._pairing_pending = True
             self._async_notify_pairing(
-                f"Tap a key card on the console of {self.device_name} to authorize Home "
-                "Assistant. The request times out after about 30 seconds."
+                f"Tap a key card on the console of {self.device_name}, confirm the key on "
+                "the touchscreen, and remove the card. The request times out after about "
+                "30 seconds."
             )
             self._notify()
             self._vehicle.pair(tesla_ble.KeysRole.OWNER, self._make_result_callback("Pair"))

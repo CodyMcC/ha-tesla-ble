@@ -92,6 +92,9 @@ class TeslaBLEConfigFlow(ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason="not_supported")
         self._address = discovery_info.address
         self._advertised_name = discovery_info.name
+        # The address identifies the vehicle until its VIN is known. HA needs a
+        # unique ID on the flow for "Ignore" to work on the discovery card.
+        await self.async_set_unique_id(discovery_info.address, raise_on_progress=False)
         self.context["title_placeholders"] = {"name": discovery_info.name or "Tesla vehicle"}
         return await self.async_step_vin()
 
@@ -103,6 +106,7 @@ class TeslaBLEConfigFlow(ConfigFlow, domain=DOMAIN):
                 return await self.async_step_manual()
             self._address = address
             self._advertised_name = self._discovered.get(address)
+            await self.async_set_unique_id(address, raise_on_progress=False)
             return await self.async_step_vin()
 
         configured_addresses = {

@@ -93,7 +93,8 @@ async def setup_entry(
 
     from homeassistant.components import bluetooth
 
-    monkeypatch.setattr(bluetooth, "async_ble_device_from_address", lambda *a, **kw: SimpleNamespace(address=ADDRESS, name="Tesla"))
+    monkeypatch.setattr(bluetooth, "async_ble_device_from_address", lambda *a, **kw: SimpleNamespace(address=ADDRESS, name="Tesla", rssi=-64))
+    monkeypatch.setattr(bluetooth, "async_last_service_info", lambda *a, **kw: SimpleNamespace(address=ADDRESS, name="Tesla", rssi=-64))
     monkeypatch.setattr(ble_module, "establish_connection", establish)
 
     data = {CONF_VIN: VIN, CONF_ADDRESS: ADDRESS}
@@ -169,6 +170,7 @@ async def test_poll_updates_entities(hass: HomeAssistant, sim, monkeypatch, hass
     assert state_of(hass, "switch", f"{VIN}_switch_charging") == "on"
     assert state_of(hass, "number", f"{VIN}_number_charge_limit") == "80"
     assert state_of(hass, "lock", f"{VIN}_lock_doors") == "locked"
+    assert state_of(hass, "sensor", f"{VIN}_sensor_ble_signal") == "-64"
     assert manager.connected is True
 
 
