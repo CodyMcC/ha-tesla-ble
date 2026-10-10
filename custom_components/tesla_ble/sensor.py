@@ -21,11 +21,14 @@ from homeassistant.const import (
     UnitOfLength,
     UnitOfPower,
     UnitOfPressure,
+    UnitOfSpeed,
     UnitOfTemperature,
     UnitOfTime,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+
+import tesla_ble
 
 from .entity import TeslaBLEEntity
 from .manager import CHARGING_ACTIVE_STATES, TeslaBLEManager
@@ -41,6 +44,8 @@ CHARGING_STATE_OPTIONS = [
     "Calibrating",
 ]
 SHIFT_STATE_OPTIONS = ["P", "R", "N", "D", "SNA", "Invalid", "Unknown"]
+IEC61851_OPTIONS = ["A", "B", "C", "E", "F", "Unknown"]
+CHARGE_LIMIT_REASON_OPTIONS = ["None", "EVSE", "BattTempLow", "HighSoc", "Cabin", "Unknown"]
 
 
 def _odometer_miles(manager: TeslaBLEManager) -> float | None:
@@ -50,6 +55,20 @@ def _odometer_miles(manager: TeslaBLEManager) -> float | None:
 
 def _minutes_to_full(manager: TeslaBLEManager) -> int | None:
     return manager.charge_state.get("minutes_to_full_charge")
+
+
+def _estimated_power(manager: TeslaBLEManager) -> float | None:
+    voltage = manager.charge_state.get("charger_voltage")
+    current = manager.charge_state.get("charger_actual_current")
+    if voltage is None or current is None:
+        return None
+    phases = manager.charge_state.get("charger_phases") or 1
+    return round(voltage * current * phases / 1000.0, 2)
+
+
+def _iec61851_state(manager: TeslaBLEManager) -> str | None:
+    raw = manager.charge_state.get("charging_state_raw")
+    return None if raw is None else tesla_ble.iec61851_state_text(raw)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -105,6 +124,49 @@ SENSOR_DESCRIPTIONS: tuple[TeslaSensorDescription, ...] = (
         value_fn=lambda m: m.charge_state.get("charger_actual_current"),
         device_class=SensorDeviceClass.CURRENT,
         native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    TeslaSensorDescription(
+        key="evse_max_current",
+        value_fn=lambda m: m.charge_state.get("charger_pilot_current"),
+        device_class=SensorDeviceClass.CURRENT,
+        native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    TeslaSensorDescription(
+        key="vehicle_max_charge_current",
+        value_fn=lambda m: m.charge_state.get("charge_current_request_max"),
+        device_class=SensorDeviceClass.CURRENT,
+        native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    TeslaSensorDescription(
+        key="charge_current_request",
+        value_fn=lambda m: m.charge_state.get("charge_current_request"),
+        device_class=SensorDeviceClass.CURRENT,
+        native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    TeslaSensorDescription(
+        key="charger_phases",
+        value_fn=lambda m: m.charge_state.get("charger_phases"),
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    TeslaSensorDescription(
+        key="charger_power_estimated",
+        value_fn=_estimated_power,
+        device_class=SensorDeviceClass.POWER,
+        native_unit_of_measurement=UnitOfPower.KILO_WATT,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    TeslaSensorDescription(
+        key="charging_rate",
+        value_fn=lambda m: m.charge_state.get("charge_rate_mph"),
+        device_class=SensorDeviceClass.SPEED,
+        native_unit_of_measurement=UnitOfSpeed.MILES_PER_HOUR,
         state_class=SensorStateClass.MEASUREMENT,
     ),
     TeslaSensorDescription(
@@ -178,6 +240,18 @@ SENSOR_DESCRIPTIONS: tuple[TeslaSensorDescription, ...] = (
         value_fn=lambda m: m.drive_state.get("shift_state"),
         device_class=SensorDeviceClass.ENUM,
         options=SHIFT_STATE_OPTIONS,
+    ),
+    TeslaSensorDescription(
+        key="iec61851_state",
+        value_fn=_iec61851_state,
+        device_class=SensorDeviceClass.ENUM,
+        options=IEC61851_OPTIONS,
+    ),
+    TeslaSensorDescription(
+        key="charge_limit_reason",
+        value_fn=lambda m: m.charge_state.get("charge_limit_reason"),
+        device_class=SensorDeviceClass.ENUM,
+        options=CHARGE_LIMIT_REASON_OPTIONS,
     ),
     TeslaSensorDescription(
         key="last_command",

@@ -6,6 +6,8 @@ from homeassistant.components.switch import SwitchEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+import tesla_ble
+
 from .entity import TeslaBLEEntity
 from .manager import CHARGING_ACTIVE_STATES, TeslaBLEManager
 
@@ -20,6 +22,7 @@ async def async_setup_entry(
         [
             TeslaChargingSwitch(manager),
             TeslaSteeringWheelHeatSwitch(manager),
+            TeslaSentryModeSwitch(manager),
         ]
     )
 
@@ -61,3 +64,22 @@ class TeslaSteeringWheelHeatSwitch(TeslaBLEEntity, SwitchEntity):
 
     async def async_turn_off(self, **kwargs) -> None:
         await self.manager.async_set_steering_wheel_heat(False)
+
+
+class TeslaSentryModeSwitch(TeslaBLEEntity, SwitchEntity):
+    _attr_translation_key = "sentry_mode"
+    _attr_icon = "mdi:shield-car"
+
+    def __init__(self, manager: TeslaBLEManager) -> None:
+        super().__init__(manager, "switch_sentry_mode")
+
+    @property
+    def is_on(self) -> bool | None:
+        raw = self.manager.closures_state.get("sentry_mode_state")
+        return None if raw is None else tesla_ble.sentry_mode_active(raw)
+
+    async def async_turn_on(self, **kwargs) -> None:
+        await self.manager.async_set_sentry_mode(True)
+
+    async def async_turn_off(self, **kwargs) -> None:
+        await self.manager.async_set_sentry_mode(False)

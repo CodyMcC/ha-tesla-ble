@@ -122,3 +122,27 @@ async def test_duplicate_vin_aborts(hass) -> None:
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_VIN: VIN})
     assert result["type"] == data_entry_flow.FlowResultType.ABORT
     assert result["reason"] == "already_configured"
+
+
+async def test_duplicate_address_aborts(hass) -> None:
+    """A second vehicle cannot claim the same Bluetooth address."""
+    entry = config_entries.ConfigEntry(
+        version=1,
+        minor_version=1,
+        domain=DOMAIN,
+        title="Tesla 789ABC",
+        data={CONF_VIN: VIN, CONF_ADDRESS: ADDRESS},
+        source=config_entries.SOURCE_USER,
+        unique_id=VIN,
+        discovery_keys={},
+        options={},
+        subentries_data=None,
+    )
+    await hass.config_entries.async_add(entry)
+
+    with patch.object(bluetooth, "async_discovered_service_info", return_value=[]):
+        result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_ADDRESS: ADDRESS})
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_VIN: "5YJ30123456789DEF"})
+    assert result["type"] == data_entry_flow.FlowResultType.ABORT
+    assert result["reason"] == "already_configured"

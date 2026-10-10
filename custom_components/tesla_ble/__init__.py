@@ -15,6 +15,7 @@ from .manager import TeslaBLEManager
 PLATFORMS = [
     "binary_sensor",
     "button",
+    "climate",
     "cover",
     "lock",
     "number",

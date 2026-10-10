@@ -71,6 +71,25 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[TeslaBinarySensorDescription, ...] = (
         device_class=BinarySensorDeviceClass.PRESENCE,
     ),
     TeslaBinarySensorDescription(
+        key="parking_brake",
+        value_fn=lambda m: (
+            None
+            if m.drive_state.get("shift_state_raw") is None
+            else tesla_ble.is_parked_tag(m.drive_state["shift_state_raw"])
+        ),
+    ),
+    TeslaBinarySensorDescription(
+        key="sunroof",
+        value_fn=lambda m: (
+            None
+            if m.closures_state.get("sun_roof_percent_open") is None
+            else m.closures_state["sun_roof_percent_open"] > 0
+        ),
+        device_class=BinarySensorDeviceClass.WINDOW,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    TeslaBinarySensorDescription(
         key="door_driver_front",
         value_fn=lambda m: _closure(m, "front_driver_door"),
         device_class=BinarySensorDeviceClass.DOOR,

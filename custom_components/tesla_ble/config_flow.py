@@ -85,9 +85,11 @@ class TeslaBLEConfigFlow(ConfigFlow, domain=DOMAIN):
             self._advertised_name = self._discovered.get(address)
             return await self.async_step_vin()
 
-        configured = self._async_current_ids(include_ignore=False)
+        configured_addresses = {
+            entry.data.get(CONF_ADDRESS) for entry in self._async_current_entries(include_ignore=False)
+        }
         for info in bluetooth.async_discovered_service_info(self.hass):
-            if info.address in configured or not info.name:
+            if info.address in configured_addresses or not info.name:
                 continue
             if not tesla_ble.is_tesla_vehicle_name(info.name):
                 continue
@@ -145,6 +147,9 @@ class TeslaBLEConfigFlow(ConfigFlow, domain=DOMAIN):
             else:
                 await self.async_set_unique_id(vin)
                 self._abort_if_unique_id_configured()
+                for existing in self._async_current_entries(include_ignore=False):
+                    if existing.data.get(CONF_ADDRESS) == self._address:
+                        return self.async_abort(reason="already_configured")
                 placeholders["expected_name"] = tesla_ble.get_vin_advertisement_name(vin)
                 if self._advertised_name and not tesla_ble.matches_vin(self._advertised_name, vin):
                     errors[CONF_VIN] = "name_mismatch"

@@ -93,6 +93,12 @@
       },
       "window_passenger_rear": {
         "name": "Window passenger rear"
+      },
+      "parking_brake": {
+        "name": "Parking brake"
+      },
+      "sunroof": {
+        "name": "Sunroof"
       }
     },
     "button": {
@@ -110,6 +116,12 @@
       },
       "wake": {
         "name": "Wake"
+      },
+      "regenerate_key": {
+        "name": "Regenerate key"
+      },
+      "unlatch_driver_door": {
+        "name": "Unlatch driver door"
       }
     },
     "cover": {
@@ -129,6 +141,9 @@
     "lock": {
       "doors": {
         "name": "Doors"
+      },
+      "charge_port_latch": {
+        "name": "Charge port latch"
       }
     },
     "number": {
@@ -193,6 +208,30 @@
       },
       "tpms_rear_right": {
         "name": "Tire pressure rear right"
+      },
+      "evse_max_current": {
+        "name": "Charger max"
+      },
+      "vehicle_max_charge_current": {
+        "name": "Car max acceptable"
+      },
+      "charge_current_request": {
+        "name": "Requested current"
+      },
+      "charger_phases": {
+        "name": "Charger phases"
+      },
+      "charger_power_estimated": {
+        "name": "Charger power estimated"
+      },
+      "charging_rate": {
+        "name": "Charging rate"
+      },
+      "iec61851_state": {
+        "name": "IEC 61851 state"
+      },
+      "charge_limit_reason": {
+        "name": "Charge limit reason"
       }
     },
     "switch": {
@@ -201,6 +240,9 @@
       },
       "steering_wheel_heat": {
         "name": "Steering wheel heater"
+      },
+      "sentry_mode": {
+        "name": "Sentry mode"
       }
     }
   },

@@ -22,6 +22,8 @@ async def async_setup_entry(
             TeslaWakeButton(manager),
             TeslaPairButton(manager),
             TeslaForceUpdateButton(manager),
+            TeslaRegenerateKeyButton(manager),
+            TeslaUnlatchDriverDoorButton(manager),
             TeslaFlashLightsButton(manager),
             TeslaHonkHornButton(manager),
         ]
@@ -84,3 +86,25 @@ class TeslaHonkHornButton(TeslaBLEEntity, ButtonEntity):
 
     async def async_press(self) -> None:
         await self.manager.async_honk_horn()
+
+
+class TeslaRegenerateKeyButton(TeslaBLEEntity, ButtonEntity):
+    _attr_translation_key = "regenerate_key"
+    _attr_icon = "mdi:key-change"
+
+    def __init__(self, manager: TeslaBLEManager) -> None:
+        super().__init__(manager, "button_regenerate_key")
+
+    async def async_press(self) -> None:
+        await self.manager.async_regenerate_key()
+
+
+class TeslaUnlatchDriverDoorButton(TeslaBLEEntity, ButtonEntity):
+    _attr_translation_key = "unlatch_driver_door"
+    _attr_icon = "mdi:car-door-lock-open"
+
+    def __init__(self, manager: TeslaBLEManager) -> None:
+        super().__init__(manager, "button_unlatch_driver_door")
+
+    async def async_press(self) -> None:
+        await self.manager.async_unlatch_driver_door()

@@ -253,7 +253,8 @@ class TeslaBLEManager:
     def _infotainment_poll_decision(self, now_ms: int) -> dict[str, Any]:
         is_asleep = bool(self.vehicle_status.get("asleep", False))
         is_charging = self.charge_state.get("charging_state") in CHARGING_ACTIVE_STATES
-        return self._poll_policy.update(now_ms, is_asleep, is_charging, False)
+        is_sentry = tesla_ble.sentry_mode_active(self.closures_state.get("sentry_mode_state", 0))
+        return self._poll_policy.update(now_ms, is_asleep, is_charging, is_sentry)
 
     async def _async_handle_polls(self) -> None:
         now = time.monotonic()
@@ -359,11 +360,46 @@ class TeslaBLEManager:
     async def async_set_climate(self, enable: bool) -> None:
         await self.async_command("Climate On" if enable else "Climate Off", lambda cb: self._vehicle.set_climate(enable, cb))
 
+    async def async_set_climate_temp(self, temp_celsius: float) -> None:
+        await self.async_command(
+            "Set Climate Temp", lambda cb: self._vehicle.set_climate_temp(temp_celsius, cb)
+        )
+
+    async def async_set_climate_keeper(self, mode: int) -> None:
+        names = {0: "Climate Keeper Off", 1: "Climate Keeper On", 2: "Climate Keeper Dog", 3: "Climate Keeper Camp"}
+        await self.async_command(
+            names.get(mode, "Climate Keeper"), lambda cb: self._vehicle.set_climate_keeper(mode, cb)
+        )
+
+    async def async_set_preconditioning_max(self, enable: bool) -> None:
+        await self.async_command(
+            "Defrost On" if enable else "Defrost Off",
+            lambda cb: self._vehicle.set_preconditioning_max(enable, cb),
+        )
+
+    async def async_set_bioweapon_mode(self, enable: bool) -> None:
+        await self.async_command(
+            "Bioweapon On" if enable else "Bioweapon Off",
+            lambda cb: self._vehicle.set_bioweapon_mode(enable, cb),
+        )
+
     async def async_set_steering_wheel_heat(self, enable: bool) -> None:
         await self.async_command(
             "Steering Heat On" if enable else "Steering Heat Off",
             lambda cb: self._vehicle.set_steering_wheel_heat(enable, cb),
         )
+
+    async def async_set_sentry_mode(self, enable: bool) -> None:
+        await self.async_command(
+            "Sentry On" if enable else "Sentry Off",
+            lambda cb: self._vehicle.set_sentry_mode(enable, cb),
+        )
+
+    async def async_regenerate_key(self) -> None:
+        await self.async_command("Regenerate Key", lambda cb: self._vehicle.regenerate_key(cb))
+
+    async def async_unlatch_driver_door(self) -> None:
+        await self.async_command("Unlatch Driver Door", lambda cb: self._vehicle.unlatch_driver_door(cb))
 
     async def async_open_trunk(self) -> None:
         await self.async_command("Open Trunk", self._vehicle.open_trunk)
@@ -379,6 +415,9 @@ class TeslaBLEManager:
 
     async def async_close_charge_port(self) -> None:
         await self.async_command("Close Charge Port", self._vehicle.close_charge_port)
+
+    async def async_unlock_charge_port(self) -> None:
+        await self.async_command("Unlock Charge Port", self._vehicle.unlock_charge_port)
 
     async def async_vent_windows(self) -> None:
         await self.async_command("Vent Windows", self._vehicle.vent_windows)
