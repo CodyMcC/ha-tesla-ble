@@ -7,10 +7,17 @@ the notification callback. No real Bluetooth is involved.
 
 from __future__ import annotations
 
+import asyncio
+import base64
+import gc
+import hashlib
+import weakref
 from datetime import timedelta
+from types import SimpleNamespace
 
 import pytest
 import tesla_ble
+from conftest import TEST_PRIVATE_KEY_PEM
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
@@ -31,31 +38,38 @@ class FakeGattClient:
         self.is_connected = True
         self._buffer = bytearray()
         self._notify = None
+        self._on_disconnect = None
+        self.frames = []
+        self.active_writes = 0
+        self.max_active_writes = 0
 
     async def start_notify(self, uuid, callback) -> None:
+        await asyncio.sleep(0)
         self._notify = callback
 
     async def stop_notify(self, uuid) -> None:
         self._notify = None
 
     async def write_gatt_char(self, uuid, chunk, response: bool = False) -> None:
+        self.active_writes += 1
+        self.max_active_writes = max(self.max_active_writes, self.active_writes)
+        await asyncio.sleep(0)
+        self.active_writes -= 1
         self._buffer.extend(chunk)
         while len(self._buffer) >= 2:
             length = int.from_bytes(self._buffer[:2], "big")
             if len(self._buffer) < 2 + length:
                 break
             frame = bytes(self._buffer[: 2 + length])
+            self.frames.append(frame)
             del self._buffer[: 2 + length]
             for reply in self.sim.on_client_frame(frame):
                 self._notify(None, bytearray(reply))
 
     async def disconnect(self) -> None:
         self.is_connected = False
-
-
-import base64
-
-from conftest import TEST_PRIVATE_KEY_PEM
+        if self._on_disconnect:
+            self._on_disconnect(self)
 
 
 async def setup_entry(
@@ -67,17 +81,15 @@ async def setup_entry(
 ) -> tuple:
     client = FakeGattClient(sim)
 
-    async def fake_connect(self) -> None:
-        self._client = client
-        await client.start_notify(ble_module.READ_UUID, self._handle_notification)
+    async def establish(_class, _device, _name, **kwargs):
+        client.is_connected = True
+        client._on_disconnect = kwargs["disconnected_callback"]
+        return client
 
-    async def fake_disconnect(self) -> None:
-        if self._client is not None:
-            await self._client.disconnect()
-        self._client = None
+    from homeassistant.components import bluetooth
 
-    monkeypatch.setattr(ble_module.TeslaBleTransport, "connect", fake_connect)
-    monkeypatch.setattr(ble_module.TeslaBleTransport, "disconnect", fake_disconnect)
+    monkeypatch.setattr(bluetooth, "async_ble_device_from_address", lambda *a, **kw: SimpleNamespace(address=ADDRESS, name="Tesla"))
+    monkeypatch.setattr(ble_module, "establish_connection", establish)
 
     entry = MockConfigEntry(domain=DOMAIN, data={CONF_VIN: VIN, CONF_ADDRESS: ADDRESS}, unique_id=VIN)
     if with_key:
@@ -98,10 +110,10 @@ async def settle(hass: HomeAssistant, ticks: int = 6) -> None:
     for _ in range(ticks):
         now += timedelta(seconds=1)
         async_fire_time_changed(hass, now)
-        await hass.async_block_till_done()
+        await hass.async_block_till_done(wait_background_tasks=True)
 
 
-async def settle_until(hass: HomeAssistant, condition, max_ticks: int = 100) -> None:
+async def settle_until(hass: HomeAssistant, condition, max_ticks: int = 200) -> None:
     """Fire ticks until `condition()` is true."""
     now = dt_util.utcnow()
     for _ in range(max_ticks):
@@ -109,7 +121,8 @@ async def settle_until(hass: HomeAssistant, condition, max_ticks: int = 100) -> 
             return
         now += timedelta(seconds=1)
         async_fire_time_changed(hass, now)
-        await hass.async_block_till_done()
+        await hass.async_block_till_done(wait_background_tasks=True)
+        await asyncio.sleep(0.02)
     raise AssertionError("condition not reached within the tick budget")
 
 
@@ -134,12 +147,12 @@ async def test_poll_updates_entities(hass: HomeAssistant, sim, monkeypatch, hass
     manager = entry.runtime_data
     manager._next_vcsec_poll = 0
 
-    await settle_until(hass, lambda: manager.charge_state and manager.vehicle_status)
+    await settle_until(hass, lambda: manager.charge_state and manager.vehicle_status and manager.drive_state)
 
     # User-visible entity ids stay stable (translation keys resolve to names).
     assert hass.states.get("sensor.tesla_789abc_battery_level") is not None
     assert state_of(hass, "sensor", f"{VIN}_sensor_battery_level") == "55"
-    assert state_of(hass, "sensor", f"{VIN}_sensor_charger_power") in ("unknown", None) or True
+    assert state_of(hass, "sensor", f"{VIN}_sensor_charger_power") == "unknown"
     assert distance_in_miles(hass, "sensor", f"{VIN}_sensor_odometer") == pytest.approx(1234.5, abs=0.1)
     assert state_of(hass, "sensor", f"{VIN}_sensor_charging_state") == "Charging"
     assert state_of(hass, "binary_sensor", f"{VIN}_binary_asleep") == "off"
@@ -162,6 +175,11 @@ async def test_lock_service_completes(hass: HomeAssistant, sim, monkeypatch, has
     await settle_until(hass, lambda: manager._vehicle.pending_command_count == 0)
 
     assert state_of(hass, "sensor", f"{VIN}_sensor_last_command") == "Lock: ok"
+    assert state_of(hass, "lock", f"{VIN}_lock_doors") == "locked"
+
+    manager._on_closures_state({"locked": True})
+    manager._on_vehicle_status({"locked": False})
+    assert state_of(hass, "lock", f"{VIN}_lock_doors") == "unlocked"
 
 
 async def test_charging_switch_completes(hass: HomeAssistant, sim, monkeypatch, hass_storage, enable_bluetooth) -> None:
@@ -179,11 +197,8 @@ async def test_charging_switch_completes(hass: HomeAssistant, sim, monkeypatch, 
 
 
 async def test_pair_button_persists_key(hass: HomeAssistant, sim, monkeypatch, hass_storage, enable_bluetooth) -> None:
-    entry, _client = await setup_entry(hass, sim, monkeypatch, hass_storage)
+    entry, _client = await setup_entry(hass, sim, monkeypatch, hass_storage, with_key=False)
     manager = entry.runtime_data
-    manager._next_vcsec_poll = 0
-    await settle_until(hass, lambda: bool(manager.vehicle_status))
-
     button_id = er.async_get(hass).async_get_entity_id("button", DOMAIN, f"{VIN}_button_pair")
     await hass.services.async_call("button", "press", {"entity_id": button_id}, blocking=True)
     await settle_until(hass, lambda: manager._vehicle.pending_command_count == 0)
@@ -197,24 +212,33 @@ async def test_force_update_button(hass: HomeAssistant, sim, monkeypatch, hass_s
     manager = entry.runtime_data
     manager._next_vcsec_poll = 0
     await settle_until(hass, lambda: bool(manager.charge_state))
+    sim.set_battery_level(61)
 
     button_id = er.async_get(hass).async_get_entity_id("button", DOMAIN, f"{VIN}_button_force_update")
     await hass.services.async_call("button", "press", {"entity_id": button_id}, blocking=True)
-    await settle_until(hass, lambda: bool(manager.charge_state))
+    await settle_until(hass, lambda: manager.charge_state.get("battery_level") == 61)
 
-    assert manager.charge_state.get("battery_level") == 55
+    assert state_of(hass, "sensor", f"{VIN}_sensor_battery_level") == "61"
 
 
-async def test_unload_disconnects(hass: HomeAssistant, sim, monkeypatch, hass_storage, enable_bluetooth) -> None:
+@pytest.mark.parametrize("shutdown", ["unload", "stop"])
+async def test_shutdown_disconnects_and_releases_vehicle(hass, sim, monkeypatch, hass_storage, shutdown):
     entry, client = await setup_entry(hass, sim, monkeypatch, hass_storage)
     manager = entry.runtime_data
     manager._next_vcsec_poll = 0
     await settle_until(hass, lambda: manager.connected)
     assert manager.connected
+    vehicle_ref = weakref.ref(manager._vehicle)
 
-    assert await hass.config_entries.async_unload(entry.entry_id)
+    if shutdown == "unload":
+        assert await hass.config_entries.async_unload(entry.entry_id)
+    else:
+        await hass.async_stop()
     await hass.async_block_till_done()
     assert not manager.connected
+    assert not client.is_connected
+    gc.collect()
+    assert vehicle_ref() is None
 
 
 async def test_wedged_link_is_cycled(hass: HomeAssistant, sim, monkeypatch, hass_storage, enable_bluetooth) -> None:
@@ -239,7 +263,8 @@ async def test_pairing_issue_when_no_key(hass: HomeAssistant, sim, monkeypatch, 
 
     entry, _client = await setup_entry(hass, sim, monkeypatch, hass_storage, with_key=False)
     registry = ir.async_get(hass)
-    assert registry.async_get_issue(DOMAIN, ISSUE_PAIRING_REQUIRED) is not None
+    issue_id = f"{ISSUE_PAIRING_REQUIRED}_{entry.entry_id}"
+    assert registry.async_get_issue(DOMAIN, issue_id) is not None
 
     # Pairing clears the issue.
     manager = entry.runtime_data
@@ -249,7 +274,7 @@ async def test_pairing_issue_when_no_key(hass: HomeAssistant, sim, monkeypatch, 
     await hass.services.async_call("button", "press", {"entity_id": button_id}, blocking=True)
     await settle_until(hass, lambda: manager._vehicle.pending_command_count == 0)
 
-    assert registry.async_get_issue(DOMAIN, ISSUE_PAIRING_REQUIRED) is None
+    assert registry.async_get_issue(DOMAIN, issue_id) is None
 
 
 async def test_no_pairing_issue_with_key(hass: HomeAssistant, sim, monkeypatch, hass_storage, enable_bluetooth) -> None:
@@ -257,8 +282,9 @@ async def test_no_pairing_issue_with_key(hass: HomeAssistant, sim, monkeypatch, 
 
     from custom_components.tesla_ble.const import ISSUE_PAIRING_REQUIRED
 
-    await setup_entry(hass, sim, monkeypatch, hass_storage)
-    assert ir.async_get(hass).async_get_issue(DOMAIN, ISSUE_PAIRING_REQUIRED) is None
+    entry, _ = await setup_entry(hass, sim, monkeypatch, hass_storage)
+    await settle_until(hass, lambda: bool(entry.runtime_data.charge_state))
+    assert ir.async_get(hass).async_get_issue(DOMAIN, f"{ISSUE_PAIRING_REQUIRED}_{entry.entry_id}") is None
 
 
 VIN2 = "5YJ30123456789DEF"
@@ -308,6 +334,20 @@ async def test_climate_entity(hass: HomeAssistant, sim, monkeypatch, hass_storag
     await settle_until(hass, lambda: manager._vehicle.pending_command_count == 0)
     assert state_of(hass, "sensor", f"{VIN}_sensor_last_command") == "Climate Off: ok"
 
+    await hass.services.async_call(
+        "climate", "set_preset_mode", {"entity_id": climate_id, "preset_mode": "Defrost"}, blocking=True
+    )
+    await settle_until(hass, lambda: manager._vehicle.pending_command_count == 0)
+    results = []
+    remove = manager.async_add_listener(lambda: results.append(manager.last_command))
+    await hass.services.async_call(
+        "climate", "set_preset_mode", {"entity_id": climate_id, "preset_mode": "Normal"}, blocking=True
+    )
+    await settle_until(hass, lambda: manager._vehicle.pending_command_count == 0)
+    remove()
+    assert "Defrost Off: ok" in results
+    assert manager.last_command == "Climate Keeper Off: ok"
+
 
 async def test_parity_entities(hass: HomeAssistant, sim, monkeypatch, hass_storage, enable_bluetooth) -> None:
     """ESPhome parity: charging diagnostics, parking brake, sentry, latch."""
@@ -347,21 +387,16 @@ async def test_multiple_vehicles(hass: HomeAssistant, monkeypatch, hass_storage,
 
     clients = {ADDRESS: FakeGattClient(sim1), ADDRESS2: FakeGattClient(sim2)}
 
-    async def fake_connect(self) -> None:
-        self._client = clients[self._address]
-        await self._client.start_notify(ble_module.READ_UUID, self._handle_notification)
+    async def establish(_class, device, _name, **kwargs):
+        client = clients[device.address]
+        client.is_connected = True
+        client._on_disconnect = kwargs["disconnected_callback"]
+        return client
 
-    async def fake_disconnect(self) -> None:
-        if self._client is not None:
-            await self._client.disconnect()
-        self._client = None
+    from homeassistant.components import bluetooth
 
-    monkeypatch.setattr(ble_module.TeslaBleTransport, "connect", fake_connect)
-    monkeypatch.setattr(ble_module.TeslaBleTransport, "disconnect", fake_disconnect)
-
-    import base64
-
-    from conftest import TEST_PRIVATE_KEY_PEM
+    monkeypatch.setattr(bluetooth, "async_ble_device_from_address", lambda _hass, address, **kw: SimpleNamespace(address=address, name="Tesla"))
+    monkeypatch.setattr(ble_module, "establish_connection", establish)
 
     entries = []
     for vin, address in ((VIN, ADDRESS), (VIN2, ADDRESS2)):
@@ -394,3 +429,191 @@ async def test_multiple_vehicles(hass: HomeAssistant, monkeypatch, hass_storage,
     devices = dr.async_get(hass)
     for entry, vin in ((entries[0], VIN), (entries[1], VIN2)):
         assert devices.async_get_device_by_identifier((DOMAIN, vin), entry.entry_id) is not None
+
+
+async def test_slow_connect_has_one_tick_and_unload_joins_services(hass, sim, monkeypatch, hass_storage):
+    from homeassistant.exceptions import HomeAssistantError
+
+    entry, client = await setup_entry(hass, sim, monkeypatch, hass_storage)
+    manager = entry.runtime_data
+    entered, release = asyncio.Event(), asyncio.Event()
+    calls = 0
+
+    async def slow_connect(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        client._on_disconnect = kwargs["disconnected_callback"]
+        entered.set()
+        await release.wait()
+        return client
+
+    monkeypatch.setattr(ble_module, "establish_connection", slow_connect)
+    tick = asyncio.create_task(manager._async_tick(None))
+    await entered.wait()
+    await asyncio.gather(*(manager._async_tick(None) for _ in range(12)))
+    service = asyncio.create_task(manager.async_wake())
+    await asyncio.sleep(0)
+    unload = asyncio.create_task(hass.config_entries.async_unload(entry.entry_id))
+    while not manager._stopped:
+        await asyncio.sleep(0)
+    second_shutdown = asyncio.create_task(manager.async_shutdown())
+    await asyncio.sleep(0)
+    release.set()
+    assert await unload
+    await second_shutdown
+    await asyncio.gather(tick, service, return_exceptions=True)
+    assert tick.cancelled() and service.cancelled()
+    assert calls == 1 and not manager.connected and not client.is_connected
+    assert manager._vehicle is None and manager._transport._notify_callback is None
+    await manager._async_tick(None)
+    with pytest.raises(HomeAssistantError, match="unloaded"):
+        await manager.async_wake()
+    assert calls == 1
+
+
+async def test_monotonic_wrap_and_stale_telemetry(hass, sim, monkeypatch, hass_storage):
+    from homeassistant.components import bluetooth
+
+    from custom_components.tesla_ble import manager as manager_module
+
+    clock = SimpleNamespace(monotonic=lambda: (2**32 + 123_000) / 1000)
+    monkeypatch.setattr(manager_module, "time", clock)
+    entry, client = await setup_entry(hass, sim, monkeypatch, hass_storage)
+    manager = entry.runtime_data
+    await settle_until(hass, lambda: bool(manager.charge_state))
+    await manager.async_force_update()
+    await settle_until(hass, lambda: manager._vehicle.pending_command_count == 0)
+    assert manager_module.monotonic_ms() == 123_000
+    await client.disconnect()
+    monkeypatch.setattr(bluetooth, "async_ble_device_from_address", lambda *a, **kw: None)
+    clock.monotonic = lambda: (2**32 + 123_000) / 1000 + 200
+    await manager._async_tick(None)
+    assert state_of(hass, "lock", f"{VIN}_lock_doors") == "unavailable"
+    assert state_of(hass, "sensor", f"{VIN}_sensor_battery_level") == "55"
+    clock.monotonic = lambda: (2**32 + 123_000) / 1000 + 1400
+    await manager._async_tick(None)
+    assert state_of(hass, "sensor", f"{VIN}_sensor_battery_level") == "unavailable"
+    assert state_of(hass, "binary_sensor", f"{VIN}_binary_connection") == "off"
+    assert state_of(hass, "button", f"{VIN}_button_pair") != "unavailable"
+
+
+async def test_periodic_polls_do_not_fill_queue_behind_existing_work(hass, sim, monkeypatch, hass_storage):
+    from custom_components.tesla_ble import manager as manager_module
+
+    entry, _ = await setup_entry(hass, sim, monkeypatch, hass_storage)
+    manager = entry.runtime_data
+    await manager.async_force_update()
+    pending = manager._vehicle.pending_command_count
+    assert pending > 0
+    monkeypatch.setattr(manager_module, "time", SimpleNamespace(monotonic=lambda: 1_000_000.0))
+    manager._next_vcsec_poll = 0
+    await manager._async_tick(None)
+    assert manager._vehicle.pending_command_count <= pending
+
+
+@pytest.mark.parametrize("write_fails", [False, True])
+async def test_pair_waits_for_durable_key_and_aborts_on_disk_error(hass, sim, monkeypatch, hass_storage, write_fails):
+    from homeassistant.exceptions import HomeAssistantError
+    from homeassistant.helpers.storage import Store
+    from homeassistant.util.file import WriteError
+
+    entry, client = await setup_entry(hass, sim, monkeypatch, hass_storage, with_key=False)
+    manager = entry.runtime_data
+    entered, release = asyncio.Event(), asyncio.Event()
+    original = Store._async_write_data
+
+    async def blocked_write(store, data):
+        entered.set()
+        await release.wait()
+        if write_fails:
+            raise WriteError("disk full")
+        await original(store, data)
+
+    with monkeypatch.context() as patches:
+        patches.setattr(Store, "_async_write_data", blocked_write)
+        pair = asyncio.create_task(manager.async_pair())
+        await entered.wait()
+        assert not manager.connected and not client.frames
+        release.set()
+        if write_fails:
+            with pytest.raises(HomeAssistantError, match="persist"):
+                await pair
+            assert not manager.connected and not client.frames
+        else:
+            await pair
+            assert manager.connected
+            assert "private_key" in hass_storage[f"{DOMAIN}.{entry.entry_id}"]["data"]
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_failed_pair_and_regenerated_key_stay_unpaired_on_reload(hass, sim, monkeypatch, hass_storage):
+    from homeassistant.helpers import issue_registry as ir
+
+    from custom_components.tesla_ble.const import ISSUE_PAIRING_REQUIRED
+
+    entry, client = await setup_entry(hass, sim, monkeypatch, hass_storage, with_key=False)
+    manager = entry.runtime_data
+    await manager.async_pair()
+    await manager._async_disconnect()
+    assert manager.last_command.startswith("Pair: failed") and not manager.paired
+    key = manager._store.load("private_key")
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    manager = entry.runtime_data
+    assert manager._store.load("private_key") == key and not manager.paired
+    assert ir.async_get(hass).async_get_issue(DOMAIN, f"{ISSUE_PAIRING_REQUIRED}_{entry.entry_id}")
+    await manager.async_regenerate_key()
+    assert manager._store.load("private_key") != key and not manager.paired
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    assert not entry.runtime_data.paired
+
+
+async def test_regeneration_does_not_acknowledge_a_failed_save(hass, sim, monkeypatch, hass_storage):
+    from homeassistant.exceptions import HomeAssistantError
+    from homeassistant.helpers.storage import Store
+    from homeassistant.util.file import WriteError
+
+    entry, _ = await setup_entry(hass, sim, monkeypatch, hass_storage)
+    manager = entry.runtime_data
+
+    async def fail_write(*args):
+        raise WriteError("disk full")
+
+    with monkeypatch.context() as patches:
+        patches.setattr(Store, "_async_write_data", fail_write)
+        with pytest.raises(HomeAssistantError, match="persist"):
+            await manager.async_regenerate_key()
+    assert manager.last_command == "Regenerate Key: failed (credentials not persisted)"
+    assert not manager.paired
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_pairing_issues_are_entry_scoped_and_removal_deletes_credentials(hass, sim, monkeypatch, hass_storage):
+    from homeassistant.helpers import issue_registry as ir
+
+    from custom_components.tesla_ble.const import ISSUE_PAIRING_REQUIRED
+
+    first, _ = await setup_entry(hass, sim, monkeypatch, hass_storage, with_key=False)
+    second = MockConfigEntry(domain=DOMAIN, data={CONF_VIN: VIN2, CONF_ADDRESS: ADDRESS2}, unique_id=VIN2)
+    key = TEST_PRIVATE_KEY_PEM.encode() + b"\0"
+    hass_storage[f"{DOMAIN}.{second.entry_id}"] = {
+        "version": 1,
+        "data": {"private_key": base64.b64encode(key).decode(), "paired_key": base64.b64encode(hashlib.sha256(key).hexdigest().encode()).decode()},
+    }
+    second.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(second.entry_id)
+    registry = ir.async_get(hass)
+    assert registry.async_get_issue(DOMAIN, f"{ISSUE_PAIRING_REQUIRED}_{first.entry_id}")
+    assert registry.async_get_issue(DOMAIN, f"{ISSUE_PAIRING_REQUIRED}_{second.entry_id}") is None
+    assert await hass.config_entries.async_remove(second.entry_id)
+    assert f"{DOMAIN}.{second.entry_id}" not in hass_storage
+    assert registry.async_get_issue(DOMAIN, f"{ISSUE_PAIRING_REQUIRED}_{first.entry_id}")
+
+
+async def test_diagnostics_redact_identifiers(hass, sim, monkeypatch, hass_storage):
+    from custom_components.tesla_ble.diagnostics import async_get_config_entry_diagnostics
+
+    entry, _ = await setup_entry(hass, sim, monkeypatch, hass_storage)
+    diagnostics = await async_get_config_entry_diagnostics(hass, entry)
+    assert diagnostics["entry"]["data"]["vin"] == "**REDACTED**"
+    assert diagnostics["entry"]["data"]["address"] == "**REDACTED**"
+    assert diagnostics["connection"]["address"] == "**REDACTED**"

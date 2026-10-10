@@ -10,6 +10,7 @@ from homeassistant.components.cover import (
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from .const import TeslaBLEConfigEntry
 from .entity import TeslaBLEEntity
 from .manager import TeslaBLEManager
 
@@ -43,7 +44,7 @@ class TeslaTrunkCover(TeslaBLEEntity, CoverEntity):
     _attr_supported_features = CoverEntityFeature.OPEN | CoverEntityFeature.CLOSE
 
     def __init__(self, manager: TeslaBLEManager) -> None:
-        super().__init__(manager, "cover_trunk")
+        super().__init__(manager, "cover_trunk", "vehicle_status")
 
     @property
     def is_closed(self) -> bool | None:
@@ -63,7 +64,7 @@ class TeslaFrunkCover(TeslaBLEEntity, CoverEntity):
     _attr_supported_features = CoverEntityFeature.OPEN
 
     def __init__(self, manager: TeslaBLEManager) -> None:
-        super().__init__(manager, "cover_frunk")
+        super().__init__(manager, "cover_frunk", "vehicle_status")
 
     @property
     def is_closed(self) -> bool | None:
@@ -79,7 +80,7 @@ class TeslaChargePortCover(TeslaBLEEntity, CoverEntity):
     _attr_supported_features = CoverEntityFeature.OPEN | CoverEntityFeature.CLOSE
 
     def __init__(self, manager: TeslaBLEManager) -> None:
-        super().__init__(manager, "cover_charge_port")
+        super().__init__(manager, "cover_charge_port", "charge_state")
 
     @property
     def is_closed(self) -> bool | None:
@@ -101,7 +102,7 @@ class TeslaWindowsCover(TeslaBLEEntity, CoverEntity):
     _attr_supported_features = CoverEntityFeature.OPEN | CoverEntityFeature.CLOSE
 
     def __init__(self, manager: TeslaBLEManager) -> None:
-        super().__init__(manager, "cover_windows")
+        super().__init__(manager, "cover_windows", "closures_state")
 
     @property
     def is_closed(self) -> bool | None:

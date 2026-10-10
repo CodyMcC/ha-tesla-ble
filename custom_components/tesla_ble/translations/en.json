@@ -14,10 +14,15 @@
       },
       "manual": {
         "title": "Bluetooth address",
-        "description": "Enter the Bluetooth (MAC) address of your Tesla. You can find it in the vehicle's Bluetooth settings screen.",
+        "description": "Enter the Tesla BLE address from Home Assistant's Bluetooth advertisement monitor or carcheck.py --scan. Use the BLE address, not the Bluetooth audio address.",
         "data": {
           "address": "Bluetooth address"
         }
+      },
+      "reconfigure": {
+        "title": "Change Bluetooth address",
+        "description": "Change the Bluetooth address without losing the vehicle's paired key.",
+        "data": {"address": "Bluetooth address"}
       },
       "vin": {
         "title": "Vehicle identification number",
@@ -34,7 +39,8 @@
     },
     "abort": {
       "already_configured": "This vehicle is already configured.",
-      "not_supported": "This Bluetooth device is not a Tesla vehicle."
+      "not_supported": "This Bluetooth device is not a Tesla vehicle.",
+      "reconfigure_successful": "Bluetooth address updated."
     }
   },
   "options": {
@@ -254,7 +260,7 @@
   "issues": {
     "pairing_required": {
       "title": "Tesla BLE: pairing required",
-      "description": "No key is paired with this vehicle yet. Press the **Pair** button on the vehicle's device page, then tap a key card on the center console within about 30 seconds."
+      "description": "Pairing has not been confirmed for {vehicle}. Press the **Pair** button on the vehicle's device page, then tap a key card on the center console. A previously paired key is confirmed automatically after a verified, successful session handshake."
     }
   }
 }

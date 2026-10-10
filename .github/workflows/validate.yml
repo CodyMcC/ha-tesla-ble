@@ -22,3 +22,16 @@ jobs:
       - uses: hacs/action@main
         with:
           category: integration
+
+  tests:
+    name: Home Assistant runtime tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - uses: astral-sh/setup-uv@v7
+      - run: uv sync
+      - run: uv run --no-sync ruff check custom_components tests scripts
+      - run: uv run --no-sync pytest tests -q

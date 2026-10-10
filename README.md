@@ -40,7 +40,7 @@ ESPHome Bluetooth proxies for range.
 3. *Settings → Devices & Services → Add Integration → Tesla BLE*.
    The vehicle is usually discovered automatically once its Bluetooth
    advertisement is seen; otherwise enter the VIN and the Bluetooth address
-   (visible on the car's Bluetooth settings screen, or with `scripts/carcheck.py --scan`).
+   (from HA's Bluetooth advertisement monitor or `scripts/carcheck.py --scan`).
 4. If this is a new key: open the vehicle's device page and press **Pair**,
    then tap a key card on the center console reader.
 
@@ -88,6 +88,28 @@ python scripts/carcheck.py --vin 5YJ... --pair     # then tap a key card
 - **Awake / charging poll intervals** and **idle back-off timeout**
 - **Disconnect after idle** (default 120 s)
 - **Maximum charging amps** (caps the charging amps slider)
+
+Use the integration's **Reconfigure** menu to change a Bluetooth address while
+keeping the VIN and credentials. Deleting the entry removes its local keys and
+sessions; it does not remove the key from the vehicle's whitelist.
+
+Keys remain plaintext/base64 in HA's `.storage`, in owner-only (0600), atomically
+written files. Keep HA backups private. Pairing generates and durably saves the
+key before sending it to the car. A key's existence alone does not confirm pairing:
+the per-vehicle repair warning clears after successful pairing or a verified,
+successful session handshake. Existing keys are retained during that check.
+
+**Regenerate key** is disabled by default. Enabling and pressing it disconnects
+the car, replaces the local key, drops sessions and requires pairing again. It
+does not revoke the previous key on the vehicle.
+
+Telemetry expires separately by state source: vehicle-security data after two
+poll intervals (at least 120 seconds), infotainment data after two idle back-off
+intervals (at least 120 seconds). Expired entities become unavailable; connection
+status and pairing/control buttons remain usable. This is cached telemetry, not
+a guarantee of the vehicle's current physical state.
+
+See [TESTING.md](TESTING.md) for offline checks and a staged hardware checklist.
 
 ## Troubleshooting
 

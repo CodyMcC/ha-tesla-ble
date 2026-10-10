@@ -17,6 +17,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 import tesla_ble
 
+from .const import TeslaBLEConfigEntry
 from .entity import TeslaBLEEntity
 from .manager import TeslaBLEManager
 
@@ -48,6 +49,7 @@ def _window(manager: TeslaBLEManager, key: str) -> bool | None:
 @dataclass(frozen=True, kw_only=True)
 class TeslaBinarySensorDescription(BinarySensorEntityDescription):
     value_fn: Callable[[TeslaBLEManager], Any]
+    state: str | None = "vehicle_status"
 
 
 BINARY_SENSOR_DESCRIPTIONS: tuple[TeslaBinarySensorDescription, ...] = (
@@ -57,11 +59,13 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[TeslaBinarySensorDescription, ...] = (
     ),
     TeslaBinarySensorDescription(
         key="charging",
+        state="charge_state",
         value_fn=_is_charging,
         device_class=BinarySensorDeviceClass.BATTERY_CHARGING,
     ),
     TeslaBinarySensorDescription(
         key="charger_connected",
+        state="charge_state",
         value_fn=_charger_connected,
         device_class=BinarySensorDeviceClass.PLUG,
     ),
@@ -72,6 +76,7 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[TeslaBinarySensorDescription, ...] = (
     ),
     TeslaBinarySensorDescription(
         key="parking_brake",
+        state="drive_state",
         value_fn=lambda m: (
             None
             if m.drive_state.get("shift_state_raw") is None
@@ -80,6 +85,7 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[TeslaBinarySensorDescription, ...] = (
     ),
     TeslaBinarySensorDescription(
         key="sunroof",
+        state="closures_state",
         value_fn=lambda m: (
             None
             if m.closures_state.get("sun_roof_percent_open") is None
@@ -119,6 +125,7 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[TeslaBinarySensorDescription, ...] = (
     ),
     TeslaBinarySensorDescription(
         key="window_driver_front",
+        state="closures_state",
         value_fn=lambda m: _window(m, "window_open_driver_front"),
         device_class=BinarySensorDeviceClass.WINDOW,
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -126,6 +133,7 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[TeslaBinarySensorDescription, ...] = (
     ),
     TeslaBinarySensorDescription(
         key="window_passenger_front",
+        state="closures_state",
         value_fn=lambda m: _window(m, "window_open_passenger_front"),
         device_class=BinarySensorDeviceClass.WINDOW,
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -133,6 +141,7 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[TeslaBinarySensorDescription, ...] = (
     ),
     TeslaBinarySensorDescription(
         key="window_driver_rear",
+        state="closures_state",
         value_fn=lambda m: _window(m, "window_open_driver_rear"),
         device_class=BinarySensorDeviceClass.WINDOW,
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -140,6 +149,7 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[TeslaBinarySensorDescription, ...] = (
     ),
     TeslaBinarySensorDescription(
         key="window_passenger_rear",
+        state="closures_state",
         value_fn=lambda m: _window(m, "window_open_passenger_rear"),
         device_class=BinarySensorDeviceClass.WINDOW,
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -147,6 +157,7 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[TeslaBinarySensorDescription, ...] = (
     ),
     TeslaBinarySensorDescription(
         key="connection",
+        state=None,
         value_fn=lambda m: m.connected,
         device_class=BinarySensorDeviceClass.CONNECTIVITY,
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -169,7 +180,7 @@ class TeslaBinarySensor(TeslaBLEEntity, BinarySensorEntity):
     entity_description: TeslaBinarySensorDescription
 
     def __init__(self, manager: TeslaBLEManager, description: TeslaBinarySensorDescription) -> None:
-        super().__init__(manager, f"binary_{description.key}")
+        super().__init__(manager, f"binary_{description.key}", description.state)
         self.entity_description = description
         self._attr_translation_key = description.key
 

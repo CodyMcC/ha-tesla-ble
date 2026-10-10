@@ -15,8 +15,9 @@ class TeslaBLEEntity(Entity):
     _attr_has_entity_name = True
     _attr_should_poll = False
 
-    def __init__(self, manager: TeslaBLEManager, key: str) -> None:
+    def __init__(self, manager: TeslaBLEManager, key: str, state: str | None = None) -> None:
         self.manager = manager
+        self._state_key = state
         self._attr_unique_id = f"{manager.vin}_{key}"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, manager.vin)},
@@ -31,4 +32,4 @@ class TeslaBLEEntity(Entity):
 
     @property
     def available(self) -> bool:
-        return self.manager.available
+        return self.manager.state_available(self._state_key) if self._state_key else not self.manager._stopped

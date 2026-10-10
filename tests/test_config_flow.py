@@ -5,6 +5,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import pytest
+import voluptuous as vol
 from homeassistant import config_entries, data_entry_flow
 from homeassistant.components import bluetooth
 
@@ -122,6 +124,42 @@ async def test_duplicate_vin_aborts(hass) -> None:
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_VIN: VIN})
     assert result["type"] == data_entry_flow.FlowResultType.ABORT
     assert result["reason"] == "already_configured"
+
+
+async def test_options_apply_after_reload_and_reject_invalid_intervals(hass, sim, monkeypatch, hass_storage):
+    from test_manager import setup_entry
+
+    entry, _ = await setup_entry(hass, sim, monkeypatch, hass_storage)
+    old = entry.runtime_data
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    with pytest.raises(vol.Invalid):
+        await hass.config_entries.options.async_configure(result["flow_id"], {"vcsec_poll_interval": 0})
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"vcsec_poll_interval": 120, "charging_amps_max": 16}
+    )
+    assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
+    await hass.async_block_till_done(wait_background_tasks=True)
+    assert old._stopped and entry.runtime_data is not old
+    assert entry.runtime_data.vcsec_poll_interval == 120
+    assert entry.runtime_data.charging_amps_max == 16
+
+
+async def test_reconfigure_preserves_vin_and_credentials(hass, sim, monkeypatch, hass_storage):
+    from test_manager import setup_entry
+
+    entry, _ = await setup_entry(hass, sim, monkeypatch, hass_storage)
+    old_key = entry.runtime_data._store.load("private_key")
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_RECONFIGURE, "entry_id": entry.entry_id}
+    )
+    assert result["step_id"] == "reconfigure"
+    with patch.object(bluetooth, "async_ble_device_from_address", return_value=None):
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_ADDRESS: "11-22-33-44-55-66"})
+    assert result["type"] == data_entry_flow.FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    await hass.async_block_till_done(wait_background_tasks=True)
+    assert entry.data == {CONF_VIN: VIN, CONF_ADDRESS: "11:22:33:44:55:66"}
+    assert entry.runtime_data._store.load("private_key") == old_key
 
 
 async def test_duplicate_address_aborts(hass) -> None:

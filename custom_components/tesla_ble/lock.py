@@ -6,6 +6,7 @@ from homeassistant.components.lock import LockEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from .const import TeslaBLEConfigEntry
 from .entity import TeslaBLEEntity
 from .manager import TeslaBLEManager
 
@@ -23,12 +24,10 @@ class TeslaDoorsLock(TeslaBLEEntity, LockEntity):
     _attr_translation_key = "doors"
 
     def __init__(self, manager: TeslaBLEManager) -> None:
-        super().__init__(manager, "lock_doors")
+        super().__init__(manager, "lock_doors", "vehicle_status")
 
     @property
     def is_locked(self) -> bool | None:
-        if "locked" in self.manager.closures_state:
-            return bool(self.manager.closures_state["locked"])
         return self.manager.vehicle_status.get("locked")
 
     async def async_lock(self, **kwargs) -> None:
@@ -48,7 +47,7 @@ class TeslaChargePortLatchLock(TeslaBLEEntity, LockEntity):
     _attr_translation_key = "charge_port_latch"
 
     def __init__(self, manager: TeslaBLEManager) -> None:
-        super().__init__(manager, "lock_charge_port_latch")
+        super().__init__(manager, "lock_charge_port_latch", "charge_state")
 
     @property
     def is_locked(self) -> bool | None:

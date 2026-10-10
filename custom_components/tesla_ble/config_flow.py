@@ -171,6 +171,32 @@ class TeslaBLEConfigFlow(ConfigFlow, domain=DOMAIN):
     def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
         return TeslaBLEOptionsFlow()
 
+    async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        entry = self._get_reconfigure_entry()
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            address = _normalize_address(user_input[CONF_ADDRESS])
+            if not MAC_RE.fullmatch(address):
+                errors[CONF_ADDRESS] = "invalid_address"
+            elif any(
+                current.entry_id != entry.entry_id and current.data.get(CONF_ADDRESS) == address
+                for current in self._async_current_entries(include_ignore=False)
+            ):
+                return self.async_abort(reason="already_configured")
+            else:
+                device = bluetooth.async_ble_device_from_address(self.hass, address, connectable=True)
+                if device and device.name and not tesla_ble.matches_vin(device.name, entry.data[CONF_VIN]):
+                    errors[CONF_ADDRESS] = "name_mismatch"
+                else:
+                    if entry.update_listeners:
+                        return self.async_update_and_abort(entry, data_updates={CONF_ADDRESS: address})
+                    return self.async_update_reload_and_abort(entry, data_updates={CONF_ADDRESS: address})
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=vol.Schema({vol.Required(CONF_ADDRESS, default=entry.data[CONF_ADDRESS]): str}),
+            errors=errors,
+        )
+
 
 class TeslaBLEOptionsFlow(OptionsFlow):
     """Polling and connection tuning."""

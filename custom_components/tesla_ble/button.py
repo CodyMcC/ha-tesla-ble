@@ -7,6 +7,7 @@ from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from .const import TeslaBLEConfigEntry
 from .entity import TeslaBLEEntity
 from .manager import TeslaBLEManager
 
@@ -91,6 +92,8 @@ class TeslaHonkHornButton(TeslaBLEEntity, ButtonEntity):
 class TeslaRegenerateKeyButton(TeslaBLEEntity, ButtonEntity):
     _attr_translation_key = "regenerate_key"
     _attr_icon = "mdi:key-change"
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_entity_registry_enabled_default = False
 
     def __init__(self, manager: TeslaBLEManager) -> None:
         super().__init__(manager, "button_regenerate_key")

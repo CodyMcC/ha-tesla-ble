@@ -7,6 +7,7 @@ from homeassistant.const import PERCENTAGE, UnitOfElectricCurrent
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from .const import TeslaBLEConfigEntry
 from .entity import TeslaBLEEntity
 from .manager import TeslaBLEManager
 
@@ -35,7 +36,7 @@ class TeslaChargingLimitNumber(TeslaBLEEntity, NumberEntity):
     _attr_icon = "mdi:battery-charging-80"
 
     def __init__(self, manager: TeslaBLEManager) -> None:
-        super().__init__(manager, "number_charge_limit")
+        super().__init__(manager, "number_charge_limit", "charge_state")
 
     @property
     def native_value(self) -> float | None:
@@ -55,7 +56,7 @@ class TeslaChargingAmpsNumber(TeslaBLEEntity, NumberEntity):
     _attr_icon = "mdi:current-ac"
 
     def __init__(self, manager: TeslaBLEManager) -> None:
-        super().__init__(manager, "number_charge_amps")
+        super().__init__(manager, "number_charge_amps", "charge_state")
         self._attr_native_max_value = manager.charging_amps_max
 
     @property

@@ -30,8 +30,9 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 import tesla_ble
 
+from .const import TeslaBLEConfigEntry
 from .entity import TeslaBLEEntity
-from .manager import CHARGING_ACTIVE_STATES, TeslaBLEManager
+from .manager import TeslaBLEManager
 
 CHARGING_STATE_OPTIONS = [
     "Unknown",
@@ -74,6 +75,7 @@ def _iec61851_state(manager: TeslaBLEManager) -> str | None:
 @dataclass(frozen=True, kw_only=True)
 class TeslaSensorDescription(SensorEntityDescription):
     value_fn: Callable[[TeslaBLEManager], Any]
+    state: str | None = "charge_state"
 
 
 SENSOR_DESCRIPTIONS: tuple[TeslaSensorDescription, ...] = (
@@ -178,6 +180,7 @@ SENSOR_DESCRIPTIONS: tuple[TeslaSensorDescription, ...] = (
     ),
     TeslaSensorDescription(
         key="odometer",
+        state="drive_state",
         value_fn=_odometer_miles,
         device_class=SensorDeviceClass.DISTANCE,
         native_unit_of_measurement=UnitOfLength.MILES,
@@ -185,6 +188,7 @@ SENSOR_DESCRIPTIONS: tuple[TeslaSensorDescription, ...] = (
     ),
     TeslaSensorDescription(
         key="outside_temp",
+        state="climate_state",
         value_fn=lambda m: m.climate_state.get("outside_temp_celsius"),
         device_class=SensorDeviceClass.TEMPERATURE,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
@@ -192,6 +196,7 @@ SENSOR_DESCRIPTIONS: tuple[TeslaSensorDescription, ...] = (
     ),
     TeslaSensorDescription(
         key="inside_temp",
+        state="climate_state",
         value_fn=lambda m: m.climate_state.get("inside_temp_celsius"),
         device_class=SensorDeviceClass.TEMPERATURE,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
@@ -199,6 +204,7 @@ SENSOR_DESCRIPTIONS: tuple[TeslaSensorDescription, ...] = (
     ),
     TeslaSensorDescription(
         key="tpms_front_left",
+        state="tire_pressure_state",
         value_fn=lambda m: m.tire_pressure_state.get("tpms_pressure_fl"),
         device_class=SensorDeviceClass.PRESSURE,
         native_unit_of_measurement=UnitOfPressure.BAR,
@@ -207,6 +213,7 @@ SENSOR_DESCRIPTIONS: tuple[TeslaSensorDescription, ...] = (
     ),
     TeslaSensorDescription(
         key="tpms_front_right",
+        state="tire_pressure_state",
         value_fn=lambda m: m.tire_pressure_state.get("tpms_pressure_fr"),
         device_class=SensorDeviceClass.PRESSURE,
         native_unit_of_measurement=UnitOfPressure.BAR,
@@ -215,6 +222,7 @@ SENSOR_DESCRIPTIONS: tuple[TeslaSensorDescription, ...] = (
     ),
     TeslaSensorDescription(
         key="tpms_rear_left",
+        state="tire_pressure_state",
         value_fn=lambda m: m.tire_pressure_state.get("tpms_pressure_rl"),
         device_class=SensorDeviceClass.PRESSURE,
         native_unit_of_measurement=UnitOfPressure.BAR,
@@ -223,6 +231,7 @@ SENSOR_DESCRIPTIONS: tuple[TeslaSensorDescription, ...] = (
     ),
     TeslaSensorDescription(
         key="tpms_rear_right",
+        state="tire_pressure_state",
         value_fn=lambda m: m.tire_pressure_state.get("tpms_pressure_rr"),
         device_class=SensorDeviceClass.PRESSURE,
         native_unit_of_measurement=UnitOfPressure.BAR,
@@ -237,6 +246,7 @@ SENSOR_DESCRIPTIONS: tuple[TeslaSensorDescription, ...] = (
     ),
     TeslaSensorDescription(
         key="shift_state",
+        state="drive_state",
         value_fn=lambda m: m.drive_state.get("shift_state"),
         device_class=SensorDeviceClass.ENUM,
         options=SHIFT_STATE_OPTIONS,
@@ -255,6 +265,7 @@ SENSOR_DESCRIPTIONS: tuple[TeslaSensorDescription, ...] = (
     ),
     TeslaSensorDescription(
         key="last_command",
+        state=None,
         value_fn=lambda m: m.last_command,
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
@@ -276,7 +287,7 @@ class TeslaSensor(TeslaBLEEntity, SensorEntity):
     entity_description: TeslaSensorDescription
 
     def __init__(self, manager: TeslaBLEManager, description: TeslaSensorDescription) -> None:
-        super().__init__(manager, f"sensor_{description.key}")
+        super().__init__(manager, f"sensor_{description.key}", description.state)
         self.entity_description = description
         self._attr_translation_key = description.key
 

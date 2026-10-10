@@ -66,7 +66,7 @@ class TeslaClimate(TeslaBLEEntity, ClimateEntity):
     _attr_target_temperature_step = 0.5
 
     def __init__(self, manager: TeslaBLEManager) -> None:
-        super().__init__(manager, "climate_climate")
+        super().__init__(manager, "climate_climate", "climate_state")
 
     @property
     def _state(self) -> dict[str, Any]:
@@ -134,8 +134,7 @@ class TeslaClimate(TeslaBLEEntity, ClimateEntity):
         keeper = PRESET_TO_KEEPER.get(preset_mode)
         if keeper is None:
             return
-        if preset_mode != PRESET_NORMAL:
-            await self.manager.async_set_preconditioning_max(False)
+        await self.manager.async_set_preconditioning_max(False)
         await self.manager.async_set_climate_keeper(keeper)
 
     async def async_set_fan_mode(self, fan_mode: str) -> None:

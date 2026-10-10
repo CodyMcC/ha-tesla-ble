@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Any
 
+from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.event import async_track_time_interval
@@ -45,6 +48,10 @@ _LOGGER = logging.getLogger(__name__)
 CHARGING_ACTIVE_STATES = ("Charging", "Starting")
 
 
+def monotonic_ms() -> int:
+    return int(time.monotonic() * 1000) & 0xFFFFFFFF
+
+
 class TeslaBLEManager:
     """Drives the C++ Vehicle state machine from the HA event loop."""
 
@@ -73,8 +80,15 @@ class TeslaBLEManager:
         self._listeners: list[Callable[[], None]] = []
         self._last_activity = 0.0
         self._connect_blocked_until = 0.0
-        self._connect_lock = asyncio.Lock()
+        self._work_lock = asyncio.Lock()
+        self._shutdown_lock = asyncio.Lock()
+        self._tasks: set[asyncio.Task] = set()
+        self._stopped = False
+        self._state_received_at: dict[str, float] = {}
+        self.paired = False
+        self._issue_id = f"{ISSUE_PAIRING_REQUIRED}_{entry.entry_id}"
         self._tick_cancel: Callable[[], None] | None = None
+        self._stop_cancel: Callable[[], None] | None = None
         self._next_vcsec_poll = 0.0
 
         from .storage import TeslaStore
@@ -103,6 +117,17 @@ class TeslaBLEManager:
 
     async def async_setup(self) -> None:
         await self._store.async_load()
+        await self._store.async_flush()
+        self._create_vehicle()
+        self.paired = self._vehicle.has_private_key and self._store.load("paired_key") == self._key_id()
+        self._transport.set_notify_callback(self._on_notify)
+        self._tick_cancel = async_track_time_interval(self.hass, self._async_tick, TICK_INTERVAL)
+        self._stop_cancel = self.hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, self._async_stop)
+        self._next_vcsec_poll = time.monotonic()
+        ir.async_delete_issue(self.hass, DOMAIN, ISSUE_PAIRING_REQUIRED)
+        self._async_update_pairing_issue()
+
+    def _create_vehicle(self) -> None:
         self._vehicle = tesla_ble.Vehicle(self._ble_adapter, self._store)
         self._vehicle.set_vin(self.vin)
         self._vehicle.set_vehicle_status_callback(self._on_vehicle_status)
@@ -111,33 +136,75 @@ class TeslaBLEManager:
         self._vehicle.set_drive_state_callback(self._on_drive_state)
         self._vehicle.set_tire_pressure_state_callback(self._on_tire_pressure_state)
         self._vehicle.set_closures_state_callback(self._on_closures_state)
-        self._transport.set_notify_callback(self._on_notify)
-        self._tick_cancel = async_track_time_interval(self.hass, self._async_tick, TICK_INTERVAL)
-        # First connection/poll shortly after setup.
-        self._next_vcsec_poll = time.monotonic()
-        self._async_update_pairing_issue()
+
+    def _key_id(self) -> bytes | None:
+        key = self._store.load("private_key")
+        return hashlib.sha256(key).hexdigest().encode() if key else None
+
+    @asynccontextmanager
+    async def _work(self) -> AsyncIterator[None]:
+        if self._stopped or self.hass.is_stopping:
+            raise HomeAssistantError("Tesla BLE integration is unloaded")
+        task = asyncio.current_task()
+        assert task is not None
+        self._tasks.add(task)
+        try:
+            async with self._work_lock:
+                if self._stopped or self.hass.is_stopping:
+                    raise HomeAssistantError("Tesla BLE integration is unloaded")
+                yield
+        finally:
+            self._tasks.discard(task)
 
     async def async_shutdown(self) -> None:
+        self._stopped = True
+        async with self._shutdown_lock:
+            await self._async_shutdown()
+
+    async def _async_shutdown(self) -> None:
+        if self._stop_cancel is not None:
+            self._stop_cancel()
+            self._stop_cancel = None
         if self._tick_cancel is not None:
             self._tick_cancel()
             self._tick_cancel = None
-        await self._async_disconnect()
-        await self._store.async_flush()
+        tasks = list(self._tasks - {asyncio.current_task()})
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        try:
+            await self._async_disconnect()
+            await self._store.async_flush()
+        finally:
+            self._transport.set_notify_callback(None)
+            self._clear_vehicle_callbacks()
+            self._vehicle = None
+            self._listeners.clear()
+            ir.async_delete_issue(self.hass, DOMAIN, self._issue_id)
+
+    async def _async_stop(self, _event: Any) -> None:
+        await self.async_shutdown()
+
+    def _clear_vehicle_callbacks(self) -> None:
+        if self._vehicle is not None:
+            for state in ("vehicle_status", "charge_state", "climate_state", "drive_state", "tire_pressure_state", "closures_state"):
+                getattr(self._vehicle, f"set_{state}_callback")(None)
 
     def _async_update_pairing_issue(self) -> None:
         """Surface a repair issue while no key is paired with the vehicle."""
         if self._vehicle is None:
             return
-        if self._vehicle.has_private_key:
-            ir.async_delete_issue(self.hass, DOMAIN, ISSUE_PAIRING_REQUIRED)
+        if self.paired:
+            ir.async_delete_issue(self.hass, DOMAIN, self._issue_id)
         else:
             ir.async_create_issue(
                 self.hass,
                 DOMAIN,
-                ISSUE_PAIRING_REQUIRED,
+                self._issue_id,
                 is_fixable=False,
                 severity=ir.IssueSeverity.WARNING,
                 translation_key=ISSUE_PAIRING_REQUIRED,
+                translation_placeholders={"vehicle": self.device_name},
             )
 
     def async_add_listener(self, listener: Callable[[], None]) -> Callable[[], None]:
@@ -155,8 +222,30 @@ class TeslaBLEManager:
 
     @property
     def available(self) -> bool:
-        """Entities stay available once any state has been received."""
-        return bool(self.vehicle_status or self.charge_state or self.connected)
+        return not self._stopped and (self.connected or any(self.state_available(state) for state in self._state_received_at))
+
+    def state_available(self, state: str) -> bool:
+        received = self._state_received_at.get(state)
+        if received is None or self._stopped:
+            return False
+        interval = self.vcsec_poll_interval if state == "vehicle_status" else self._poll_policy.sleep_timeout_ms / 1000
+        return time.monotonic() - received <= max(120, interval * 2)
+
+    def _received_state(self, state: str) -> None:
+        self._state_received_at[state] = time.monotonic()
+        self._sync_pairing()
+        self._notify()
+
+    def _sync_pairing(self) -> None:
+        confirmed = self._vehicle.has_private_key and self._store.load("paired_key") == self._key_id()
+        if self.paired != confirmed:
+            self.paired = confirmed
+            self._async_update_pairing_issue()
+
+    def _mark_paired(self) -> None:
+        self.paired = True
+        self._store.save("paired_key", self._key_id())
+        self._async_update_pairing_issue()
 
     # ------------------------------------------------------------------
     # C++ callbacks (event loop thread)
@@ -164,29 +253,31 @@ class TeslaBLEManager:
 
     def _on_vehicle_status(self, status: dict[str, Any]) -> None:
         self.vehicle_status = status
-        self._notify()
+        self._received_state("vehicle_status")
 
     def _on_charge_state(self, state: dict[str, Any]) -> None:
         self.charge_state = state
-        self._notify()
+        self._received_state("charge_state")
 
     def _on_climate_state(self, state: dict[str, Any]) -> None:
         self.climate_state = state
-        self._notify()
+        self._received_state("climate_state")
 
     def _on_drive_state(self, state: dict[str, Any]) -> None:
         self.drive_state = state
-        self._notify()
+        self._received_state("drive_state")
 
     def _on_tire_pressure_state(self, state: dict[str, Any]) -> None:
         self.tire_pressure_state = state
-        self._notify()
+        self._received_state("tire_pressure_state")
 
     def _on_closures_state(self, state: dict[str, Any]) -> None:
         self.closures_state = state
-        self._notify()
+        self._received_state("closures_state")
 
     def _on_notify(self, data: bytes) -> None:
+        if self._stopped or self._vehicle is None or not self.connected:
+            return
         self._last_activity = time.monotonic()
         self._vehicle.on_rx_data(data)
 
@@ -201,42 +292,61 @@ class TeslaBLEManager:
     # ------------------------------------------------------------------
 
     async def async_ensure_connected(self) -> None:
+        async with self._work():
+            await self._async_ensure_connected()
+
+    async def _async_ensure_connected(self) -> None:
         """Connect if needed; raises HomeAssistantError when unreachable."""
+        if self._stopped or self.hass.is_stopping:
+            raise HomeAssistantError("Tesla BLE integration is unloaded")
         if self._transport.is_connected:
             return
-        async with self._connect_lock:
-            if self._transport.is_connected:
-                return
-            if time.monotonic() < self._connect_blocked_until:
-                raise HomeAssistantError(
-                    f"Tesla {self.vin[-6:]} is not reachable over Bluetooth; retrying soon"
-                )
-            try:
-                await self._transport.connect()
-            except Exception as err:  # noqa: BLE001 - surface any connect failure
-                self._connect_blocked_until = time.monotonic() + CONNECT_RETRY_BACKOFF.total_seconds()
-                raise HomeAssistantError(f"Could not connect to Tesla {self.vin[-6:]}: {err}") from err
-            self._vehicle.set_connected(True)
-            self.connected = True
-            self._last_activity = time.monotonic()
-            self._connect_blocked_until = 0.0
-            # Refresh state right away.
-            self._next_vcsec_poll = 0.0
-            self._notify()
+        if time.monotonic() < self._connect_blocked_until:
+            raise HomeAssistantError(
+                f"Tesla {self.vin[-6:]} is not reachable over Bluetooth; retrying soon"
+            )
+        await self._store.async_flush()
+        if self._stopped or self.hass.is_stopping:
+            raise HomeAssistantError("Tesla BLE integration is unloaded")
+        try:
+            await self._transport.connect()
+        except Exception as err:  # noqa: BLE001 - surface any connect failure
+            self._connect_blocked_until = time.monotonic() + CONNECT_RETRY_BACKOFF.total_seconds()
+            raise HomeAssistantError(f"Could not connect to Tesla {self.vin[-6:]}: {err}") from err
+        if self._stopped or self.hass.is_stopping:
+            await self._transport.disconnect()
+            raise HomeAssistantError("Tesla BLE integration is unloaded")
+        self._vehicle.set_connected(True)
+        self.connected = True
+        self._last_activity = time.monotonic()
+        self._connect_blocked_until = 0.0
+        self._next_vcsec_poll = 0.0
+        self._notify()
 
     async def _async_disconnect(self) -> None:
         if self.connected or self._transport.is_connected:
             self.connected = False
             if self._vehicle is not None:
                 self._vehicle.set_connected(False)
-            await self._transport.disconnect()
-            self._notify()
+        await self._transport.disconnect()
+        self._notify()
 
     # ------------------------------------------------------------------
     # Periodic work
     # ------------------------------------------------------------------
 
     async def _async_tick(self, _now: Any) -> None:
+        if self._stopped or self.hass.is_stopping or self._work_lock.locked():
+            return
+        async with self._work():
+            try:
+                await self._async_run_tick()
+            except (HomeAssistantError, ConnectionError):
+                _LOGGER.debug("Vehicle unavailable during tick", exc_info=True)
+            self._sync_pairing()
+            self._notify()
+
+    async def _async_run_tick(self) -> None:
         if self._transport.is_connected:
             if self._vehicle is not None and not self._vehicle.is_connected:
                 # The library reset its sessions (e.g. auth stall) while the
@@ -251,14 +361,16 @@ class TeslaBLEManager:
         await self._async_handle_idle_disconnect()
 
     def _infotainment_poll_decision(self, now_ms: int) -> dict[str, Any]:
-        is_asleep = bool(self.vehicle_status.get("asleep", False))
-        is_charging = self.charge_state.get("charging_state") in CHARGING_ACTIVE_STATES
-        is_sentry = tesla_ble.sentry_mode_active(self.closures_state.get("sentry_mode_state", 0))
+        is_asleep = self.state_available("vehicle_status") and bool(self.vehicle_status.get("asleep", False))
+        is_charging = self.state_available("charge_state") and self.charge_state.get("charging_state") in CHARGING_ACTIVE_STATES
+        is_sentry = self.state_available("closures_state") and tesla_ble.sentry_mode_active(self.closures_state.get("sentry_mode_state", 0))
         return self._poll_policy.update(now_ms, is_asleep, is_charging, is_sentry)
 
     async def _async_handle_polls(self) -> None:
+        if self._vehicle.pending_command_count:
+            return
         now = time.monotonic()
-        now_ms = int(now * 1000)
+        now_ms = monotonic_ms()
         vcsec_due = now >= self._next_vcsec_poll
         decision = self._infotainment_poll_decision(now_ms)
         infotainment_due = self._poll_policy.should_poll(now_ms, decision["interval_ms"])
@@ -267,7 +379,7 @@ class TeslaBLEManager:
 
         if not self._transport.is_connected:
             try:
-                await self.async_ensure_connected()
+                await self._async_ensure_connected()
             except HomeAssistantError:
                 # Back off; try again on a later tick.
                 self._next_vcsec_poll = now + CONNECT_RETRY_BACKOFF.total_seconds()
@@ -303,7 +415,9 @@ class TeslaBLEManager:
                 text = f"{name}: failed ({result.error_message})"
             self.last_command = text
             _LOGGER.debug("Command result: %s", text)
-            if name == "Pair" and result.success:
+            if name == "Pair":
+                if result.success:
+                    self._mark_paired()
                 self._async_update_pairing_issue()
             self._notify()
 
@@ -311,39 +425,46 @@ class TeslaBLEManager:
 
     async def async_command(self, name: str, action: Callable[[Callable], None]) -> None:
         """Run a vehicle command, connecting first if needed."""
-        await self.async_ensure_connected()
-        self._last_activity = time.monotonic()
-        self.last_command = f"{name}: pending"
-        self._notify()
-        action(self._make_result_callback(name))
-        await self._transport.async_flush()
+        async with self._work():
+            await self._async_ensure_connected()
+            self._last_activity = time.monotonic()
+            self.last_command = f"{name}: pending"
+            self._notify()
+            action(self._make_result_callback(name))
+            await self._transport.async_flush()
 
     async def async_pair(self) -> None:
         """Send the whitelist-add request; tap a key card on the console next."""
-        await self.async_ensure_connected()
-        self._last_activity = time.monotonic()
-        self.last_command = "Pair: waiting for key card tap"
-        self._notify()
-        self._vehicle.pair(tesla_ble.KeysRole.OWNER, self._make_result_callback("Pair"))
-        await self._transport.async_flush()
+        async with self._work():
+            if not self._vehicle.has_private_key:
+                self._vehicle.regenerate_key()
+                if not self._vehicle.has_private_key:
+                    raise HomeAssistantError("Could not generate a vehicle private key")
+            await self._store.async_flush()
+            await self._async_ensure_connected()
+            self._last_activity = time.monotonic()
+            self.last_command = "Pair: waiting for key card tap"
+            self._notify()
+            self._vehicle.pair(tesla_ble.KeysRole.OWNER, self._make_result_callback("Pair"))
+            await self._transport.async_flush()
 
     async def async_force_update(self) -> None:
-        await self.async_ensure_connected()
-        self._last_activity = time.monotonic()
-        self._vehicle.vcsec_poll()
-        self._vehicle.charge_state_poll(tesla_ble.WakePolicy.NO_WAKE_SKIP)
-        self._vehicle.climate_state_poll(tesla_ble.WakePolicy.NO_WAKE_SKIP)
-        self._vehicle.drive_state_poll(tesla_ble.WakePolicy.NO_WAKE_SKIP)
-        self._vehicle.closures_state_poll(tesla_ble.WakePolicy.NO_WAKE_SKIP)
-        self._poll_policy.on_poll(int(time.monotonic() * 1000))
-        await self._transport.async_flush()
+        async with self._work():
+            await self._async_ensure_connected()
+            self._last_activity = time.monotonic()
+            self._vehicle.vcsec_poll()
+            self._vehicle.infotainment_poll(tesla_ble.WakePolicy.NO_WAKE_SKIP)
+            self._poll_policy.on_poll(monotonic_ms())
+            await self._transport.async_flush()
 
     async def async_wake(self) -> None:
-        await self.async_command("Wake", self._vehicle.wake)
+        await self.async_command("Wake", lambda cb: self._vehicle.wake(cb))
 
     async def async_lock_doors(self, lock: bool) -> None:
-        action = self._vehicle.lock if lock else self._vehicle.unlock
-        await self.async_command("Lock" if lock else "Unlock", action)
+        await self.async_command(
+            "Lock" if lock else "Unlock",
+            lambda cb: self._vehicle.lock(cb) if lock else self._vehicle.unlock(cb),
+        )
 
     async def async_set_charging(self, enable: bool) -> None:
         await self.async_command(
@@ -396,37 +517,52 @@ class TeslaBLEManager:
         )
 
     async def async_regenerate_key(self) -> None:
-        await self.async_command("Regenerate Key", lambda cb: self._vehicle.regenerate_key(cb))
+        async with self._work():
+            await self._async_disconnect()
+            self.paired = False
+            self._store.remove("paired_key")
+            self.last_command = "Regenerate Key: pending"
+            self._notify()
+            results = []
+            self._vehicle.regenerate_key(results.append)
+            self._async_update_pairing_issue()
+            try:
+                await self._store.async_flush()
+            except HomeAssistantError:
+                self.last_command = "Regenerate Key: failed (credentials not persisted)"
+                self._notify()
+                raise
+            self._make_result_callback("Regenerate Key")(results[0])
 
     async def async_unlatch_driver_door(self) -> None:
         await self.async_command("Unlatch Driver Door", lambda cb: self._vehicle.unlatch_driver_door(cb))
 
     async def async_open_trunk(self) -> None:
-        await self.async_command("Open Trunk", self._vehicle.open_trunk)
+        await self.async_command("Open Trunk", lambda cb: self._vehicle.open_trunk(cb))
 
     async def async_close_trunk(self) -> None:
-        await self.async_command("Close Trunk", self._vehicle.close_trunk)
+        await self.async_command("Close Trunk", lambda cb: self._vehicle.close_trunk(cb))
 
     async def async_open_frunk(self) -> None:
-        await self.async_command("Open Frunk", self._vehicle.open_frunk)
+        await self.async_command("Open Frunk", lambda cb: self._vehicle.open_frunk(cb))
 
     async def async_open_charge_port(self) -> None:
-        await self.async_command("Open Charge Port", self._vehicle.open_charge_port)
+        await self.async_command("Open Charge Port", lambda cb: self._vehicle.open_charge_port(cb))
 
     async def async_close_charge_port(self) -> None:
-        await self.async_command("Close Charge Port", self._vehicle.close_charge_port)
+        await self.async_command("Close Charge Port", lambda cb: self._vehicle.close_charge_port(cb))
 
     async def async_unlock_charge_port(self) -> None:
-        await self.async_command("Unlock Charge Port", self._vehicle.unlock_charge_port)
+        await self.async_command("Unlock Charge Port", lambda cb: self._vehicle.unlock_charge_port(cb))
 
     async def async_vent_windows(self) -> None:
-        await self.async_command("Vent Windows", self._vehicle.vent_windows)
+        await self.async_command("Vent Windows", lambda cb: self._vehicle.vent_windows(cb))
 
     async def async_close_windows(self) -> None:
-        await self.async_command("Close Windows", self._vehicle.close_windows)
+        await self.async_command("Close Windows", lambda cb: self._vehicle.close_windows(cb))
 
     async def async_flash_lights(self) -> None:
-        await self.async_command("Flash Lights", self._vehicle.flash_lights)
+        await self.async_command("Flash Lights", lambda cb: self._vehicle.flash_lights(cb))
 
     async def async_honk_horn(self) -> None:
-        await self.async_command("Honk Horn", self._vehicle.honk_horn)
+        await self.async_command("Honk Horn", lambda cb: self._vehicle.honk_horn(cb))

@@ -8,6 +8,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 import tesla_ble
 
+from .const import TeslaBLEConfigEntry
 from .entity import TeslaBLEEntity
 from .manager import CHARGING_ACTIVE_STATES, TeslaBLEManager
 
@@ -32,7 +33,7 @@ class TeslaChargingSwitch(TeslaBLEEntity, SwitchEntity):
     _attr_icon = "mdi:ev-station"
 
     def __init__(self, manager: TeslaBLEManager) -> None:
-        super().__init__(manager, "switch_charging")
+        super().__init__(manager, "switch_charging", "charge_state")
 
     @property
     def is_on(self) -> bool | None:
@@ -53,7 +54,7 @@ class TeslaSteeringWheelHeatSwitch(TeslaBLEEntity, SwitchEntity):
     _attr_icon = "mdi:steering"
 
     def __init__(self, manager: TeslaBLEManager) -> None:
-        super().__init__(manager, "switch_steering_wheel_heat")
+        super().__init__(manager, "switch_steering_wheel_heat", "climate_state")
 
     @property
     def is_on(self) -> bool | None:
@@ -71,7 +72,7 @@ class TeslaSentryModeSwitch(TeslaBLEEntity, SwitchEntity):
     _attr_icon = "mdi:shield-car"
 
     def __init__(self, manager: TeslaBLEManager) -> None:
-        super().__init__(manager, "switch_sentry_mode")
+        super().__init__(manager, "switch_sentry_mode", "closures_state")
 
     @property
     def is_on(self) -> bool | None:

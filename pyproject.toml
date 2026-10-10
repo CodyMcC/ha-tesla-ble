@@ -2,7 +2,15 @@
 name = "ha-tesla-ble-dev"
 version = "0.1.0"
 description = "Development tooling for the Tesla BLE Home Assistant integration"
-requires-python = ">=3.13"
+requires-python = ">=3.14"
+
+[dependency-groups]
+dev = [
+    "pytest-homeassistant-custom-component==0.13.371",
+    "bleak-retry-connector>=4.7.1",
+    "tesla-ble==6.0.0",
+    "ruff>=0.14",
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
