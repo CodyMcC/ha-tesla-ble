@@ -3,12 +3,13 @@
 ## Offline checks
 
 Pre-release install: copy `custom_components/tesla_ble` from the local
-`dist/ha-tesla-ble.zip` into HA and install a matching rebuilt 6.0.0 wheel
-from `../tesla-ble/dist/` into **HA's Python runtime** before restarting.
-Linux HA needs a Linux wheel, even when Docker runs on a Mac. Do not use the
-old distributions under `dist/pre-audit/`. Full cross-repository instructions
-are in `../TESLA-BLE-TESTING.md`. Native wheels are not yet published on PyPI;
-the runtime CI dependency cannot resolve until that release exists.
+`dist/ha-tesla-ble.zip` into HA and install the published `tesla-ble==6.0.1`
+wheel (or a matching rebuilt wheel from `../tesla-ble/dist/`) into **HA's
+Python runtime** before restarting. Linux HA needs a Linux wheel, even when
+Docker runs on a Mac. Do not use the old distributions under
+`dist/pre-audit/`. Full cross-repository instructions are in
+`../TESLA-BLE-TESTING.md`. `tesla-ble==6.0.1` is published on PyPI; the
+runtime CI dependency resolves from the index once the release is available.
 
 Run from this repository after the current shared `tesla-ble` bindings have been
 built and installed into this repository's existing environment:

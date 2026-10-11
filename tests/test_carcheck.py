@@ -30,8 +30,22 @@ async def test_pair_waits_for_result_and_timeout_fails(sim, monkeypatch, tmp_pat
     monkeypatch.setattr(carcheck, "STATE_DIR", tmp_path)
     monkeypatch.setattr(carcheck, "find_device", find)
     monkeypatch.setattr(carcheck, "BleakClient", connect)
-    args = SimpleNamespace(vin=VIN, address=None, scan_timeout=1, timeout=timeout, scan=False, debug=False,
-                           pair=True, poll=False, wake=False, lock=False, unlock=False, charging=None, amps=None, limit=None)
+    args = SimpleNamespace(
+        vin=VIN,
+        address=None,
+        scan_timeout=1,
+        timeout=timeout,
+        scan=False,
+        debug=False,
+        pair=True,
+        poll=False,
+        wake=False,
+        lock=False,
+        unlock=False,
+        charging=None,
+        amps=None,
+        limit=None,
+    )
     assert await carcheck.run(args) == expected
     assert not client.is_connected
     assert stat.S_IMODE((tmp_path / f"carcheck-{VIN}.json").stat().st_mode) == 0o600

@@ -71,52 +71,22 @@
         "name": "Asleep"
       },
       "charger_connected": {
-        "name": "Charger"
+        "name": "Charge cable connected"
       },
       "charging": {
         "name": "Charging"
       },
       "connection": {
-        "name": "Online"
-      },
-      "door_driver_front": {
-        "name": "Door driver front"
-      },
-      "door_driver_rear": {
-        "name": "Door driver rear"
-      },
-      "door_passenger_front": {
-        "name": "Door passenger front"
-      },
-      "door_passenger_rear": {
-        "name": "Door passenger rear"
+        "name": "Connection"
       },
       "user_present": {
         "name": "User present"
       },
-      "window_driver_front": {
-        "name": "Window driver front"
-      },
-      "window_driver_rear": {
-        "name": "Window driver rear"
-      },
-      "window_passenger_front": {
-        "name": "Window passenger front"
-      },
-      "window_passenger_rear": {
-        "name": "Window passenger rear"
-      },
       "parking_brake": {
-        "name": "Parking brake"
-      },
-      "sunroof": {
-        "name": "Sunroof"
+        "name": "Parked"
       },
       "doors": {
         "name": "Doors"
-      },
-      "windows": {
-        "name": "Windows"
       },
       "scheduled_charging": {
         "name": "Scheduled charging"
@@ -125,18 +95,36 @@
         "name": "Scheduled departure"
       }
     },
+    "update": {
+      "software_update": {
+        "name": "Firmware"
+      }
+    },
+    "select": {
+      "seat_climate_left": {"name": "Front left seat climate"},
+      "seat_climate_right": {"name": "Front right seat climate"},
+      "seat_heater_rear_left": {"name": "Rear left seat heat"},
+      "seat_heater_rear_right": {"name": "Rear right seat heat"},
+      "seat_heater_rear_center": {"name": "Rear center seat heat"},
+      "seat_heater_rear_left_back": {"name": "Rear left backrest heat"},
+      "seat_heater_rear_right_back": {"name": "Rear right backrest heat"},
+      "seat_heater_third_row_left": {"name": "Third row left seat heat"},
+      "seat_heater_third_row_right": {"name": "Third row right seat heat"},
+      "cabin_overheat_protection": {"name": "Cabin overheat protection"},
+      "cop_activation_temperature": {"name": "Cabin overheat temperature"}
+    },
     "button": {
       "flash_lights": {
         "name": "Flash lights"
       },
       "force_update": {
-        "name": "Force data update"
+        "name": "Refresh vehicle data"
       },
       "honk_horn": {
-        "name": "Horn"
+        "name": "Honk horn"
       },
       "pair": {
-        "name": "Pair"
+        "name": "Pair vehicle"
       },
       "wake": {
         "name": "Wake up"
@@ -144,19 +132,13 @@
       "regenerate_key": {
         "name": "Regenerate key"
       },
-      "software_update_cancel": {
-        "name": "Cancel software update"
-      },
-      "software_update_install": {
-        "name": "Install software update"
-      },
       "unlatch_driver_door": {
         "name": "Unlatch driver door"
       }
     },
     "cover": {
       "charge_port": {
-        "name": "Charger door"
+        "name": "Charge port door"
       },
       "frunk": {
         "name": "Frunk"
@@ -166,11 +148,14 @@
       },
       "windows": {
         "name": "Windows"
+      },
+      "sunroof": {
+        "name": "Sunroof"
       }
     },
     "device_tracker": {
       "vehicle": {
-        "name": "Vehicle"
+        "name": "Location"
       }
     },
     "lock": {
@@ -190,6 +175,7 @@
       }
     },
     "sensor": {
+      "steering_wheel_heat_mode": {"name": "Steering heat mode"},
       "battery_level": {
         "name": "Battery"
       },
@@ -197,25 +183,25 @@
         "name": "Range"
       },
       "charge_energy_added": {
-        "name": "Energy added"
+        "name": "Energy"
       },
       "charge_limit_soc": {
         "name": "Charge limit"
       },
       "charger_actual_current": {
-        "name": "Charger current"
+        "name": "Current"
       },
       "charger_power": {
-        "name": "Charger power"
+        "name": "Power"
       },
       "charger_voltage": {
-        "name": "Charger voltage"
+        "name": "Voltage"
       },
       "charging_state": {
         "name": "Charging state"
       },
       "inside_temp": {
-        "name": "Temperature (inside)"
+        "name": "Cabin temperature"
       },
       "last_command": {
         "name": "Last command"
@@ -224,16 +210,16 @@
         "name": "BLE signal"
       },
       "minutes_to_full_charge": {
-        "name": "Time charge complete"
+        "name": "Charge completion time"
       },
       "odometer": {
         "name": "Odometer"
       },
       "outside_temp": {
-        "name": "Temperature (outside)"
+        "name": "Outside temperature"
       },
       "shift_state": {
-        "name": "Shift state"
+        "name": "Gear"
       },
       "tpms_front_left": {
         "name": "Tire pressure front left"
@@ -248,16 +234,16 @@
         "name": "Tire pressure rear right"
       },
       "evse_max_current": {
-        "name": "Charger max"
+        "name": "Charger current limit"
       },
       "vehicle_max_charge_current": {
-        "name": "Car max acceptable"
+        "name": "Vehicle current limit"
       },
       "charge_current_request": {
         "name": "Requested current"
       },
       "charger_phases": {
-        "name": "Charger phases"
+        "name": "Phases"
       },
       "charging_rate": {
         "name": "Charging rate"
@@ -267,17 +253,14 @@
       },
       "charge_limit_reason": {
         "name": "Charge limit reason"
-      },
-      "software_update": {
-        "name": "Software update"
       }
     },
     "switch": {
       "charging": {
-        "name": "Charger"
+        "name": "Charging"
       },
       "steering_wheel_heat": {
-        "name": "Heated steering"
+        "name": "Steering wheel heater"
       },
       "sentry_mode": {
         "name": "Sentry mode"
@@ -295,7 +278,7 @@
   "issues": {
     "pairing_required": {
       "title": "Tesla BLE: pairing required",
-      "description": "Pairing has not been confirmed for {vehicle}. Press the **Pair** button on the vehicle's device page, then tap a key card on the center console. A previously paired key is confirmed automatically after a verified, successful session handshake."
+      "description": "Pairing has not been confirmed for {vehicle}. Enable the **Pair vehicle** entity in the device's entity settings, press it, then tap a key card on the center console. A previously paired key is confirmed automatically after a verified, successful session handshake."
     }
   }
 }

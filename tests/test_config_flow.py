@@ -93,11 +93,7 @@ async def test_bluetooth_discovery_flow(hass, settled_advert) -> None:
     # Derive the VIN whose advertised name this is: use the binding in reverse.
     import tesla_ble
 
-    vin = next(
-        v
-        for v in ("5YJS0000000000000", VIN)
-        if tesla_ble.get_vin_advertisement_name(v) == advertised
-    )
+    vin = next(v for v in ("5YJS0000000000000", VIN) if tesla_ble.get_vin_advertisement_name(v) == advertised)
 
     result = await hass.config_entries.flow.async_init(
         DOMAIN,
@@ -115,11 +111,13 @@ async def test_bluetooth_discovery_flow(hass, settled_advert) -> None:
     assert result["data"][CONF_VIN] == vin
 
 
-async def test_bluetooth_discovery_accepts_beacon_without_name(hass, settled_advert) -> None:
+@pytest.mark.parametrize("name", [None, ADDRESS])
+async def test_bluetooth_discovery_accepts_beacon_without_name(hass, settled_advert, monkeypatch, name) -> None:
     """Passive-only scanners may forward the iBeacon payload without a name."""
+    monkeypatch.setattr(bluetooth, "async_ble_device_from_address", lambda *a, **kw: SimpleNamespace(name=ADDRESS))
     info = _discovered(
         ADDRESS,
-        None,
+        name,
         manufacturer_data={76: bytes.fromhex("021574278bdab64445208f0c720eaf05993501009970c5")},
     )
     result = await hass.config_entries.flow.async_init(
@@ -129,6 +127,25 @@ async def test_bluetooth_discovery_accepts_beacon_without_name(hass, settled_adv
     )
     assert result["type"] == data_entry_flow.FlowResultType.FORM
     assert result["step_id"] == "vin"
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_VIN: VIN})
+    assert result["step_id"] == "pair"
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
+    assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
+
+
+async def test_configured_vehicle_is_not_rediscovered(hass, settled_advert):
+    import tesla_ble
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_VIN: VIN, CONF_ADDRESS: ADDRESS}, unique_id=VIN)
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_BLUETOOTH},
+        data=_discovered(ADDRESS, tesla_ble.get_vin_advertisement_name(VIN)),
+    )
+    assert result["type"] == data_entry_flow.FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
 
 
 async def test_bluetooth_discovery_flow_can_be_ignored(hass, settled_advert) -> None:
@@ -196,9 +213,7 @@ async def test_options_apply_after_reload_and_reject_invalid_intervals(hass, sim
     result = await hass.config_entries.options.async_init(entry.entry_id)
     with pytest.raises(vol.Invalid):
         await hass.config_entries.options.async_configure(result["flow_id"], {"vcsec_poll_interval": 0})
-    result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"vcsec_poll_interval": 120}
-    )
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {"vcsec_poll_interval": 120})
     assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
     await hass.async_block_till_done(wait_background_tasks=True)
     assert old._stopped and entry.runtime_data is not old

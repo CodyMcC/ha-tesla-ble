@@ -10,8 +10,9 @@ from homeassistant.components.cover import (
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from .binary_sensor import _any, _window_attributes
 from .const import TeslaBLEConfigEntry
-from .entity import TeslaBLEEntity
+from .entity import TeslaBLEEntity, async_add_supported_entities
 from .manager import TeslaBLEManager
 
 
@@ -28,6 +29,9 @@ async def async_setup_entry(
             TeslaChargePortCover(manager),
             TeslaWindowsCover(manager),
         ]
+    )
+    async_add_supported_entities(
+        manager, async_add_entities, [(TeslaSunroofCover(manager), ("sun_roof_percent_open",))]
     )
 
 
@@ -106,6 +110,10 @@ class TeslaWindowsCover(TeslaBLEEntity, CoverEntity):
         super().__init__(manager, "cover_windows", "closures_state")
 
     @property
+    def extra_state_attributes(self) -> dict[str, str] | None:
+        return _window_attributes(self.manager)
+
+    @property
     def is_closed(self) -> bool | None:
         values = [
             self.manager.closures_state.get(key)
@@ -116,13 +124,40 @@ class TeslaWindowsCover(TeslaBLEEntity, CoverEntity):
                 "window_open_passenger_rear",
             )
         ]
-        known = [value for value in values if value is not None]
-        if not known:
-            return None
-        return not any(known)
+        opened = _any(values)
+        return None if opened is None else not opened
 
     async def async_open_cover(self, **kwargs) -> None:
         await self.manager.async_vent_windows()
 
     async def async_close_cover(self, **kwargs) -> None:
         await self.manager.async_close_windows()
+
+
+class TeslaSunroofCover(TeslaBLEEntity, CoverEntity):
+    _attr_translation_key = "sunroof"
+    _attr_icon = "mdi:car-select"
+    _attr_device_class = CoverDeviceClass.WINDOW
+    _attr_supported_features = CoverEntityFeature.OPEN | CoverEntityFeature.CLOSE | CoverEntityFeature.SET_POSITION
+
+    def __init__(self, manager: TeslaBLEManager) -> None:
+        super().__init__(manager, "cover_sunroof", "closures_state")
+
+    @property
+    def current_cover_position(self) -> int | None:
+        value = self.manager.closures_state.get("sun_roof_percent_open")
+        return value if isinstance(value, int) and 0 <= value <= 100 else None
+
+    @property
+    def is_closed(self) -> bool | None:
+        position = self.current_cover_position
+        return None if position is None else position == 0
+
+    async def async_open_cover(self, **kwargs) -> None:
+        await self.manager.async_set_sunroof_position(100)
+
+    async def async_close_cover(self, **kwargs) -> None:
+        await self.manager.async_set_sunroof_position(0)
+
+    async def async_set_cover_position(self, **kwargs) -> None:
+        await self.manager.async_set_sunroof_position(kwargs["position"])

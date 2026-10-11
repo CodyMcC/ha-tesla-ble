@@ -6,19 +6,26 @@ on:
   schedule:
     - cron: "0 4 * * 1"
 
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   hassfest:
     name: Hassfest
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
       - uses: home-assistant/actions/hassfest@master
 
   hacs:
     name: HACS
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
       - uses: hacs/action@main
         with:
           category: integration
@@ -27,11 +34,12 @@ jobs:
     name: Home Assistant runtime tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.3.0
         with:
           python-version: "3.14"
-      - uses: astral-sh/setup-uv@v7
-      - run: uv sync
+      - run: uv sync --locked
       - run: uv run --no-sync ruff check custom_components tests scripts
+      - run: uv run --no-sync ruff format --check custom_components tests scripts
+      - run: uv run --no-sync mypy
       - run: uv run --no-sync pytest tests -q

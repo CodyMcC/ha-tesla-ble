@@ -2,11 +2,35 @@
 
 from __future__ import annotations
 
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import Entity
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
 from .manager import TeslaBLEManager
+
+
+def async_add_supported_entities(
+    manager: TeslaBLEManager,
+    async_add_entities: AddEntitiesCallback,
+    entities: list[tuple[Entity, tuple[str, ...]]],
+) -> None:
+    def add_observed() -> None:
+        ready = [(entity, fields) for entity, fields in entities if manager.capabilities.intersection(fields)]
+        if ready:
+            registry = er.async_get(manager.hass)
+            for entity, _ in ready:
+                domain = entity.unique_id.split("_", 2)[1]
+                entity_id = registry.async_get_entity_id(domain, DOMAIN, entity.unique_id)
+                if entity_id and registry.async_get(entity_id).disabled_by == er.RegistryEntryDisabler.INTEGRATION:
+                    registry.async_update_entity(entity_id, disabled_by=None)
+            async_add_entities([entity for entity, _ in ready])
+            for item in ready:
+                entities.remove(item)
+
+    manager.entry.async_on_unload(manager.async_add_listener(add_observed))
+    add_observed()
 
 
 class TeslaBLEEntity(Entity):

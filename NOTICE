@@ -1,0 +1,9 @@
+Tesla BLE for Home Assistant
+Copyright (c) 2025-2026 TeslaBLE contributors
+
+The current integration is licensed under AGPL-3.0-only; see LICENSE.
+Earlier revisions used the MIT license, retained in LICENSES/MIT.txt.
+This change does not revoke permissions granted for those earlier revisions.
+
+The integration uses tesla-ble, licensed under AGPL-3.0-only:
+https://github.com/yoziru/tesla-ble

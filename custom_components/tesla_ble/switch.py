@@ -10,7 +10,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 import tesla_ble
 
 from .const import TeslaBLEConfigEntry
-from .entity import TeslaBLEEntity
+from .entity import TeslaBLEEntity, async_add_supported_entities
 from .manager import CHARGING_ACTIVE_STATES, TeslaBLEManager
 
 
@@ -23,16 +23,21 @@ async def async_setup_entry(
     async_add_entities(
         [
             TeslaChargingSwitch(manager),
-            TeslaSteeringWheelHeatSwitch(manager),
             TeslaSentryModeSwitch(manager),
             TeslaPollingSwitch(manager),
         ]
+    )
+    async_add_supported_entities(
+        manager,
+        async_add_entities,
+        [
+            (TeslaSteeringWheelHeatSwitch(manager), ("steering_wheel_heater",)),
+        ],
     )
 
 
 class TeslaChargingSwitch(TeslaBLEEntity, SwitchEntity):
     _attr_translation_key = "charging"
-    _attr_icon = "mdi:ev-station"
 
     def __init__(self, manager: TeslaBLEManager) -> None:
         super().__init__(manager, "switch_charging", "charge_state")
@@ -53,7 +58,6 @@ class TeslaChargingSwitch(TeslaBLEEntity, SwitchEntity):
 
 class TeslaSteeringWheelHeatSwitch(TeslaBLEEntity, SwitchEntity):
     _attr_translation_key = "steering_wheel_heat"
-    _attr_icon = "mdi:steering"
 
     def __init__(self, manager: TeslaBLEManager) -> None:
         super().__init__(manager, "switch_steering_wheel_heat", "climate_state")
@@ -71,7 +75,6 @@ class TeslaSteeringWheelHeatSwitch(TeslaBLEEntity, SwitchEntity):
 
 class TeslaSentryModeSwitch(TeslaBLEEntity, SwitchEntity):
     _attr_translation_key = "sentry_mode"
-    _attr_icon = "mdi:shield-car"
 
     def __init__(self, manager: TeslaBLEManager) -> None:
         super().__init__(manager, "switch_sentry_mode", "closures_state")
@@ -92,7 +95,6 @@ class TeslaPollingSwitch(TeslaBLEEntity, SwitchEntity):
     """Pause polling (e.g. to let the vehicle sleep); entities keep last values."""
 
     _attr_translation_key = "polling"
-    _attr_icon = "mdi:sync"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, manager: TeslaBLEManager) -> None:

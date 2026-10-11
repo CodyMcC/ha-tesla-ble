@@ -31,6 +31,7 @@ class TeslaPresenceTracker(TeslaBLEEntity, TrackerEntity):
     """Home while the vehicle answers over Bluetooth, away otherwise."""
 
     _attr_translation_key = "vehicle"
+    _attr_icon = "mdi:car-electric"
     _attr_source_type = SourceType.BLUETOOTH_LE
 
     def __init__(self, manager: TeslaBLEManager) -> None:

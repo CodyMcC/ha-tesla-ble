@@ -93,10 +93,17 @@ class TeslaBLEConfigFlow(ConfigFlow, domain=DOMAIN):
         """A Bluetooth advertisement matched a Tesla discovery matcher."""
         if not _is_tesla_advert(discovery_info):
             return self.async_abort(reason="not_supported")
+        if any(
+            entry.data.get(CONF_ADDRESS) == discovery_info.address
+            for entry in self._async_current_entries(include_ignore=False)
+        ):
+            return self.async_abort(reason="already_configured")
         if not await self._async_still_advertising(discovery_info.address):
             return self.async_abort(reason="not_seen")
         self._address = discovery_info.address
-        self._advertised_name = discovery_info.name
+        self._advertised_name = (
+            discovery_info.name if tesla_ble.is_tesla_vehicle_name(discovery_info.name or "") else None
+        )
         # The address identifies the vehicle until its VIN is known. HA needs a
         # unique ID on the flow for "Ignore" to work on the discovery card.
         await self.async_set_unique_id(discovery_info.address, raise_on_progress=False)
@@ -136,9 +143,7 @@ class TeslaBLEConfigFlow(ConfigFlow, domain=DOMAIN):
         if not self._discovered:
             return await self.async_step_manual()
 
-        choices = {
-            address: f"{name} ({address})" for address, name in sorted(self._discovered.items())
-        }
+        choices = {address: f"{name} ({address})" for address, name in sorted(self._discovered.items())}
         choices[MANUAL_ADDRESS] = "Enter Bluetooth address manually"
         return self.async_show_form(
             step_id="user",
@@ -174,7 +179,7 @@ class TeslaBLEConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is None and self._advertised_name is None and self._address is not None:
             # Look up the currently advertised name for a manual address.
             device = bluetooth.async_ble_device_from_address(self.hass, self._address, connectable=True)
-            if device is not None and device.name:
+            if device is not None and tesla_ble.is_tesla_vehicle_name(device.name or ""):
                 self._advertised_name = device.name
                 placeholders["advertised_name"] = device.name
 
@@ -235,7 +240,11 @@ class TeslaBLEConfigFlow(ConfigFlow, domain=DOMAIN):
                 return self.async_abort(reason="already_configured")
             else:
                 device = bluetooth.async_ble_device_from_address(self.hass, address, connectable=True)
-                if device and device.name and not tesla_ble.matches_vin(device.name, entry.data[CONF_VIN]):
+                if (
+                    device
+                    and tesla_ble.is_tesla_vehicle_name(device.name or "")
+                    and not tesla_ble.matches_vin(device.name, entry.data[CONF_VIN])
+                ):
                     errors[CONF_ADDRESS] = "name_mismatch"
                 else:
                     if entry.update_listeners:
