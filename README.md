@@ -80,6 +80,7 @@ python scripts/carcheck.py --vin 5YJ... --pair     # then tap a key card
 | --- | --- |
 | `sensor` | battery level, range, charger power/voltage/current, charge limit, odometer, temperatures, tire pressures, charging state, shift state, last command, BLE signal |
 | `binary_sensor` | asleep, charging, charger connected, user present, doors, windows, Bluetooth connection |
+| `device_tracker` | home while the car is within Bluetooth range, not_home once it leaves |
 | `lock` | doors |
 | `switch` | charging, steering wheel heater |
 | `number` | charge limit, charging amps |
@@ -111,10 +112,13 @@ Telemetry expires separately by state source: vehicle-security data after two
 poll intervals (at least 120 seconds), infotainment data after two idle back-off
 intervals (at least 120 seconds). While the vehicle is **observed asleep**, its
 last known infotainment values stay visible instead of going unavailable (the
-*Asleep* sensor shows on); everything expires only once the vehicle is
-unreachable entirely. Connection status and pairing/control buttons remain
-usable. This is cached telemetry, not a guarantee of the vehicle's current
-physical state.
+*Asleep* sensor shows on). When the vehicle **leaves Bluetooth range**, all
+telemetry expires to *unavailable* about two minutes after the last contact,
+the *Vehicle* tracker switches to *not_home* and the *Bluetooth connection*
+binary sensor turns off. Use the tracker or the connection sensor for
+automations; `unavailable` is a data-quality signal, not a presence signal.
+Connection status and pairing/control buttons remain usable. This is cached
+telemetry, not a guarantee of the vehicle's current physical state.
 
 See [TESTING.md](TESTING.md) for offline checks and a staged hardware checklist.
 

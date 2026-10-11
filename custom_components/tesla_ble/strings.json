@@ -149,6 +149,11 @@
         "name": "Windows"
       }
     },
+    "device_tracker": {
+      "vehicle": {
+        "name": "Vehicle"
+      }
+    },
     "lock": {
       "doors": {
         "name": "Doors"

@@ -95,7 +95,7 @@ async def setup_entry(
     from homeassistant.components import bluetooth
 
     monkeypatch.setattr(bluetooth, "async_ble_device_from_address", lambda *a, **kw: SimpleNamespace(address=ADDRESS, name="Tesla", rssi=-64))
-    monkeypatch.setattr(bluetooth, "async_last_service_info", lambda *a, **kw: SimpleNamespace(address=ADDRESS, name="Tesla", rssi=-64))
+    monkeypatch.setattr(bluetooth, "async_last_service_info", lambda *a, **kw: SimpleNamespace(address=ADDRESS, name="Tesla", rssi=-64, time=time.monotonic()))
     monkeypatch.setattr(ble_module, "establish_connection", establish)
 
     data = {CONF_VIN: VIN, CONF_ADDRESS: ADDRESS}
@@ -542,8 +542,10 @@ async def test_monotonic_wrap_and_stale_telemetry(hass, sim, monkeypatch, hass_s
     monkeypatch.setattr(bluetooth, "async_ble_device_from_address", lambda *a, **kw: None)
     clock.monotonic = lambda: (2**32 + 123_000) / 1000 + 200
     await manager._async_tick(None)
+    # The vehicle status is stale, so the car is out of range: everything
+    # expires instead of showing day-old values.
     assert state_of(hass, "lock", f"{VIN}_lock_doors") == "unavailable"
-    assert state_of(hass, "sensor", f"{VIN}_sensor_battery_level") == "55"
+    assert state_of(hass, "sensor", f"{VIN}_sensor_battery_level") == "unavailable"
     clock.monotonic = lambda: (2**32 + 123_000) / 1000 + 1400
     await manager._async_tick(None)
     assert state_of(hass, "sensor", f"{VIN}_sensor_battery_level") == "unavailable"
@@ -573,6 +575,20 @@ async def test_asleep_vehicle_keeps_last_known_values(hass, sim, monkeypatch, ha
     manager._state_received_at["vehicle_status"] = time.monotonic() - 3600
     manager._notify()
     assert state_of(hass, "sensor", f"{VIN}_sensor_battery_level") == "unavailable"
+
+
+async def test_presence_tracker_follows_reachability(hass, sim, monkeypatch, hass_storage, enable_bluetooth):
+    """The tracker is home while the vehicle is reachable, away otherwise."""
+    entry, _client = await setup_entry(hass, sim, monkeypatch, hass_storage)
+    manager = entry.runtime_data
+    await settle_until(hass, lambda: manager.state_fresh("vehicle_status"))
+    assert state_of(hass, "device_tracker", f"{VIN}_tracker") == "home"
+
+    # The car leaves: no status, no adverts.
+    manager._state_received_at["vehicle_status"] = time.monotonic() - 3600
+    manager.rssi = None
+    manager._notify()
+    assert state_of(hass, "device_tracker", f"{VIN}_tracker") == "not_home"
 
 
 async def test_periodic_polls_do_not_fill_queue_behind_existing_work(hass, sim, monkeypatch, hass_storage):

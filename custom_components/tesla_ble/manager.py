@@ -49,6 +49,10 @@ _LOGGER = logging.getLogger(__name__)
 
 CHARGING_ACTIVE_STATES = ("Charging", "Starting")
 
+# Advert RSSI is only meaningful for a few minutes; stale history from
+# habluetooth must not look like the vehicle is still nearby.
+RSSI_MAX_AGE_SECONDS = 300
+
 
 def monotonic_ms() -> int:
     return int(time.monotonic() * 1000) & 0xFFFFFFFF
@@ -292,13 +296,20 @@ class TeslaBLEManager:
     def state_available(self, state: str) -> bool:
         """Whether entities should expose this state.
 
-        A sleeping vehicle stops sending infotainment data by design, so its
-        last known values stay visible while the vehicle status is still
-        fresh. Everything expires once the vehicle is unreachable entirely.
+        The vehicle status is the reachability signal: while it is fresh the
+        car is at home and can be talked to. A sleeping vehicle stops sending
+        infotainment data by design, so its last known values stay visible;
+        once the status itself is stale the car is out of range and all
+        telemetry expires.
         """
+        status_fresh = self.state_fresh("vehicle_status")
+        if state == "vehicle_status":
+            return status_fresh
+        if not status_fresh:
+            return False
         if self.state_fresh(state):
             return True
-        return self.state_fresh("vehicle_status") and bool(self.vehicle_status.get("asleep", False))
+        return bool(self.vehicle_status.get("asleep", False))
 
     def _received_state(self, state: str) -> None:
         self._state_received_at[state] = time.monotonic()
@@ -432,10 +443,17 @@ class TeslaBLEManager:
         await self._async_handle_polls()
         await self._async_handle_idle_disconnect()
 
+    @property
+    def reachable(self) -> bool:
+        """Whether the vehicle is currently within Bluetooth range."""
+        return self.state_fresh("vehicle_status") or self.rssi is not None
+
     def _update_rssi(self) -> None:
         from homeassistant.components import bluetooth
 
         info = bluetooth.async_last_service_info(self.hass, self.address, connectable=True)
+        if info is not None and time.monotonic() - info.time > RSSI_MAX_AGE_SECONDS:
+            info = None  # stale advert: the vehicle is out of range
         rssi = info.rssi if info is not None else None
         if rssi != self.rssi:
             self.rssi = rssi

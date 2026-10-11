@@ -18,6 +18,7 @@ PLATFORMS = [
     "button",
     "climate",
     "cover",
+    "device_tracker",
     "lock",
     "number",
     "sensor",
