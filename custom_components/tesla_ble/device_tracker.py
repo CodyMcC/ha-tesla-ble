@@ -37,5 +37,6 @@ class TeslaPresenceTracker(TeslaBLEEntity, TrackerEntity):
         super().__init__(manager, "tracker", None)
 
     @property
-    def location_name(self) -> str | None:
-        return "home" if self.manager.reachable else "not_home"
+    def in_zones(self) -> list[str] | None:
+        """Report the home zone while reachable, no zones otherwise."""
+        return ["zone.home"] if self.manager.reachable else []

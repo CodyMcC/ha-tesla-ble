@@ -15,6 +15,7 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.const import (
     PERCENTAGE,
+    SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
     EntityCategory,
     UnitOfElectricCurrent,
     UnitOfElectricPotential,
@@ -136,7 +137,7 @@ def _software_update_status(manager: TeslaBLEManager) -> str | None:
     raw = manager.software_update_state.get("status")
     if raw is None:
         return None
-    return SOFTWARE_UPDATE_OPTIONS[raw - 1] if 1 <= raw <= len(SOFTWARE_UPDATE_OPTIONS) else "Unknown"
+    return tesla_ble.software_update_status_text(raw)
 
 
 def _software_update_attributes(manager: TeslaBLEManager) -> dict[str, Any] | None:
@@ -361,6 +362,7 @@ SENSOR_DESCRIPTIONS: tuple[TeslaSensorDescription, ...] = (
         state=None,
         value_fn=lambda m: m.rssi,
         device_class=SensorDeviceClass.SIGNAL_STRENGTH,
+        native_unit_of_measurement=SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
         state_class=SensorStateClass.MEASUREMENT,
     ),
 )
