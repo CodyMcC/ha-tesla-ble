@@ -101,7 +101,9 @@ class TeslaBLEConfigFlow(ConfigFlow, domain=DOMAIN):
         if not await self._async_still_advertising(discovery_info.address):
             return self.async_abort(reason="not_seen")
         self._address = discovery_info.address
-        self._advertised_name = discovery_info.name if tesla_ble.is_tesla_vehicle_name(discovery_info.name or "") else None
+        self._advertised_name = (
+            discovery_info.name if tesla_ble.is_tesla_vehicle_name(discovery_info.name or "") else None
+        )
         # The address identifies the vehicle until its VIN is known. HA needs a
         # unique ID on the flow for "Ignore" to work on the discovery card.
         await self.async_set_unique_id(discovery_info.address, raise_on_progress=False)
@@ -141,9 +143,7 @@ class TeslaBLEConfigFlow(ConfigFlow, domain=DOMAIN):
         if not self._discovered:
             return await self.async_step_manual()
 
-        choices = {
-            address: f"{name} ({address})" for address, name in sorted(self._discovered.items())
-        }
+        choices = {address: f"{name} ({address})" for address, name in sorted(self._discovered.items())}
         choices[MANUAL_ADDRESS] = "Enter Bluetooth address manually"
         return self.async_show_form(
             step_id="user",

@@ -63,20 +63,20 @@ class TeslaBleTransport:
     async def connect(self) -> None:
         from homeassistant.components import bluetooth
 
-        device: BLEDevice | None = bluetooth.async_ble_device_from_address(
-            self._hass, self._address, connectable=True
-        )
+        device: BLEDevice | None = bluetooth.async_ble_device_from_address(self._hass, self._address, connectable=True)
         if device is None:
             raise BleakNotFoundError(f"Device {self._address} is not currently visible")
 
         _LOGGER.debug("Connecting to %s (%s)", self._address, device.name)
-        connection = asyncio.create_task(establish_connection(
-            BleakClientWithServiceCache,
-            device,
-            self._name,
-            max_attempts=CONNECT_ATTEMPTS,
-            disconnected_callback=self._handle_disconnected,
-        ))
+        connection = asyncio.create_task(
+            establish_connection(
+                BleakClientWithServiceCache,
+                device,
+                self._name,
+                max_attempts=CONNECT_ATTEMPTS,
+                disconnected_callback=self._handle_disconnected,
+            )
+        )
         try:
             client = await asyncio.shield(connection)
         except asyncio.CancelledError:
@@ -93,8 +93,7 @@ class TeslaBleTransport:
         try:
             await client.start_notify(
                 READ_UUID,
-                lambda sender, data: self._handle_notification(sender, data)
-                if self._client is client else None,
+                lambda sender, data: self._handle_notification(sender, data) if self._client is client else None,
             )
             if not self.is_connected:
                 raise ConnectionError("Disconnected while subscribing to vehicle notifications")

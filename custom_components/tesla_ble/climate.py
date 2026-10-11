@@ -58,9 +58,7 @@ class TeslaClimate(TeslaBLEEntity, ClimateEntity):
     _attr_preset_modes = [PRESET_NORMAL, PRESET_DEFROST, PRESET_KEEP_ON, PRESET_DOG, PRESET_CAMP]
     _attr_fan_modes = [FAN_NORMAL, FAN_BIOWEAPON]
     _attr_supported_features = (
-        ClimateEntityFeature.TARGET_TEMPERATURE
-        | ClimateEntityFeature.PRESET_MODE
-        | ClimateEntityFeature.FAN_MODE
+        ClimateEntityFeature.TARGET_TEMPERATURE | ClimateEntityFeature.PRESET_MODE | ClimateEntityFeature.FAN_MODE
     )
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_target_temperature_step = 0.5

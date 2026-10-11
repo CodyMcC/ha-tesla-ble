@@ -26,7 +26,7 @@ ESPHome Bluetooth proxies for range.
 
 ## Requirements
 
-- Home Assistant with the **Bluetooth** integration working (local adapter
+- Home Assistant **2026.10 or newer**, with the **Bluetooth** integration working (local adapter
   and/or ESPHome Bluetooth proxy with active connections enabled)
 - A paired key: setup pairs automatically; to retry, enable **Pair vehicle**
   in the device's entity settings, press it, then tap a key card on the console
@@ -48,21 +48,30 @@ ESPHome Bluetooth proxies for range.
    enable **Pair vehicle** in its entity settings and press it to retry — progress and the result are
    shown as persistent notifications.
 
-> **Until `tesla-ble` is published to PyPI**, Home Assistant cannot install the
-> requirement automatically. Build and install it first (from the repository
-> root; requires a C++23 compiler and Python ≥ 3.13):
->
-> ```sh
-> uv sync --project /path/to/tesla-ble
-> uv pip install --python <HA-venv>/bin/python /path/to/tesla-ble
-> ```
->
-> Prebuilt wheels (Linux x86_64/aarch64, macOS arm64/x86_64) are produced by
-> the repository's cibuildwheel workflow; local wheels can be built with
-> `uvx cibuildwheel --platform linux .` (macOS needs the python.org installers,
-> see the bindings README).
+Home Assistant installs `tesla-ble` (and its wheels for Linux glibc/musl and
+macOS) automatically from PyPI; nothing needs to be built locally. To build a
+wheel yourself instead, see the bindings README in
+[yoziru/tesla-ble](https://github.com/yoziru/tesla-ble).
 
 ## Testing without Home Assistant
+
+### Development checks
+
+```sh
+uv sync --locked
+uv run --no-sync ruff check custom_components tests scripts
+uv run --no-sync ruff format --check custom_components tests scripts
+uv run --no-sync mypy
+uv run --no-sync pytest tests -q
+```
+
+The checked-in lockfile fixes the HA test environment and development tools.
+Ruff checks and formats all Python sources. Strict mypy currently covers the
+BLE transport, credential storage adapters and constants against HA's types
+and the packaged TeslaBLE stubs. It does not yet cover the manager, entity
+platforms or config flow; these retain runtime integration coverage.
+
+### Standalone vehicle check
 
 `scripts/carcheck.py` talks to the vehicle directly from any machine with
 Python and Bluetooth (macOS, Linux, or a laptop with a USB dongle):
@@ -73,6 +82,14 @@ python scripts/carcheck.py --vin 5YJ... --scan     # find the car
 python scripts/carcheck.py --vin 5YJ... --poll     # connect, poll, print JSON
 python scripts/carcheck.py --vin 5YJ... --pair     # then tap a key card
 ```
+
+## License
+
+The current integration is licensed under **AGPL-3.0-only**, matching its
+`tesla-ble` dependency. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+Earlier MIT-licensed revisions retain their original permissions; their
+notice is preserved in [LICENSES/MIT.txt](LICENSES/MIT.txt). No history
+rewrite is required to change the license for future revisions.
 
 ## Entities
 
@@ -91,8 +108,12 @@ python scripts/carcheck.py --vin 5YJ... --pair     # then tap a key card
 
 There is one **Power** sensor in watts and one **Energy** sensor in kWh. Energy
 starts at zero with the first observed session reading, then accumulates observed
-increases in the vehicle's session-energy counter, including observed session
-resets. Its total and last session reading are stored together across reloads,
+increases in the vehicle's session-energy counter, including inferred session
+resets. Drops below 0.1 kWh are treated as reporting jitter, retaining the
+previous high-water reading so rebounds are not counted again. Larger drops
+are inferred as resets; BLE supplies no session ID to distinguish them from
+larger meter corrections. `ENERGY_RESET_DROP_KWH` controls this tolerance.
+Its total and last session reading are stored together across reloads,
 restarts, and key regeneration; deleting the vehicle removes the counter. For
 existing vehicles, tracking starts when this feature is installed, not retroactively
 from the original installation date. `tracking_since` and `session_energy_kwh`

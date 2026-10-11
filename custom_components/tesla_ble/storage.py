@@ -5,7 +5,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.storage import Store
@@ -24,8 +24,8 @@ _LOGGER = logging.getLogger(__name__)
 STORAGE_VERSION = 1
 
 
-class _DurableStore(Store):
-    async def _async_write_data(self, data: dict) -> None:
+class _DurableStore(Store[dict[str, str]]):
+    async def _async_write_data(self, data: dict[str, Any]) -> None:
         try:
             await super()._async_write_data(data)
         except (WriteError, SerializationError) as err:
@@ -70,7 +70,7 @@ class TeslaStore(tesla_ble.StorageAdapter):
             return None
         try:
             return base64.b64decode(value, validate=True)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             _LOGGER.warning("Corrupt stored value for %s, ignoring", key)
             return None
 

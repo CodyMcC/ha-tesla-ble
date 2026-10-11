@@ -169,9 +169,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     manager: TeslaBLEManager = entry.runtime_data
-    async_add_entities(
-        TeslaBinarySensor(manager, description) for description in BINARY_SENSOR_DESCRIPTIONS
-    )
+    async_add_entities(TeslaBinarySensor(manager, description) for description in BINARY_SENSOR_DESCRIPTIONS)
 
 
 class TeslaBinarySensor(TeslaBLEEntity, BinarySensorEntity):

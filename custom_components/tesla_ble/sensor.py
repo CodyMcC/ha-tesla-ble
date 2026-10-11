@@ -391,19 +391,36 @@ async def async_setup_entry(
     async_add_entities(
         TeslaSensor(manager, description) for description in SENSOR_DESCRIPTIONS if not description.supported_by
     )
-    async_add_supported_entities(manager, async_add_entities, [
-        (TeslaSensor(manager, description), description.supported_by)
-        for description in SENSOR_DESCRIPTIONS if description.supported_by
-    ])
+    async_add_supported_entities(
+        manager,
+        async_add_entities,
+        [
+            (TeslaSensor(manager, description), description.supported_by)
+            for description in SENSOR_DESCRIPTIONS
+            if description.supported_by
+        ],
+    )
 
 
 class TeslaSensor(TeslaBLEEntity, SensorEntity):
     entity_description: TeslaSensorDescription
-    _unrecorded_attributes = frozenset({
-        "raw_soc", "est_battery_range_miles", "est_battery_range_km", "added_range",
-        "session_energy_kwh", "charger_amps_request", "charger_amps_actual", "charger_volts",
-        "charger_phases", "charger_max_current", "vehicle_max_current", "reported_power_w", "raw_state",
-    })
+    _unrecorded_attributes = frozenset(
+        {
+            "raw_soc",
+            "est_battery_range_miles",
+            "est_battery_range_km",
+            "added_range",
+            "session_energy_kwh",
+            "charger_amps_request",
+            "charger_amps_actual",
+            "charger_volts",
+            "charger_phases",
+            "charger_max_current",
+            "vehicle_max_current",
+            "reported_power_w",
+            "raw_state",
+        }
+    )
 
     def __init__(self, manager: TeslaBLEManager, description: TeslaSensorDescription) -> None:
         super().__init__(manager, f"sensor_{description.key}", description.state)

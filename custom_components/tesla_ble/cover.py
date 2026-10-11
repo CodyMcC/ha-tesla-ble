@@ -30,7 +30,9 @@ async def async_setup_entry(
             TeslaWindowsCover(manager),
         ]
     )
-    async_add_supported_entities(manager, async_add_entities, [(TeslaSunroofCover(manager), ("sun_roof_percent_open",))])
+    async_add_supported_entities(
+        manager, async_add_entities, [(TeslaSunroofCover(manager), ("sun_roof_percent_open",))]
+    )
 
 
 def _closure_open(manager: TeslaBLEManager, key: str) -> bool | None:

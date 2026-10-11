@@ -55,6 +55,7 @@ SEAT_COOL_FIELDS = {
 }
 
 CHARGING_ACTIVE_STATES = ("Charging", "Starting")
+ENERGY_RESET_DROP_KWH = 0.1
 
 # Advert RSSI is only meaningful for a few minutes; stale history from
 # habluetooth must not look like the vehicle is still nearby.
@@ -148,13 +149,19 @@ class TeslaBLEManager:
             try:
                 energy = json.loads(saved_energy)
                 total, last = energy["total"], energy["last_session"]
-                if not math.isfinite(total) or total < 0 or (last is not None and (not math.isfinite(last) or last < 0)):
+                if (
+                    not math.isfinite(total)
+                    or total < 0
+                    or (last is not None and (not math.isfinite(last) or last < 0))
+                ):
                     raise ValueError("Invalid energy counter")
                 self.energy_total = total
                 self._energy_last_session = last
                 self.energy_tracking_since = energy["tracking_since"]
             except (ValueError, TypeError, KeyError) as err:
-                raise HomeAssistantError("Could not restore Tesla BLE energy counter; stored data was preserved") from err
+                raise HomeAssistantError(
+                    "Could not restore Tesla BLE energy counter; stored data was preserved"
+                ) from err
         else:
             self.energy_tracking_since = dt_util.utcnow().isoformat()
             self._save_energy()
@@ -267,8 +274,7 @@ class TeslaBLEManager:
     def _async_notify_paired(self) -> None:
         self._pairing_pending = False
         self._async_notify_pairing(
-            f"{self.device_name} is paired with Home Assistant and can now be controlled "
-            "over Bluetooth."
+            f"{self.device_name} is paired with Home Assistant and can now be controlled over Bluetooth."
         )
 
     def _consume_pair_on_setup(self) -> None:
@@ -310,7 +316,9 @@ class TeslaBLEManager:
 
     @property
     def available(self) -> bool:
-        return not self._stopped and (self.connected or any(self.state_available(state) for state in self._state_received_at))
+        return not self._stopped and (
+            self.connected or any(self.state_available(state) for state in self._state_received_at)
+        )
 
     def state_fresh(self, state: str) -> bool:
         """Whether telemetry for this state was received recently enough."""
@@ -371,22 +379,30 @@ class TeslaBLEManager:
         session_energy = state.get("charge_energy_added")
         if isinstance(session_energy, (int, float)) and math.isfinite(session_energy) and session_energy >= 0:
             session_energy = round(session_energy, 2)
-            if self._energy_last_session is not None:
-                # ponytail: infer session resets from decreases; BLE has no lifetime meter to recover missed sessions.
-                delta = session_energy - self._energy_last_session
-                self.energy_total = round(self.energy_total + (delta if delta >= 0 else session_energy), 2)
-            self._energy_last_session = session_energy
+            if self._energy_last_session is None:
+                self._energy_last_session = session_energy
+            else:
+                delta = round(session_energy - self._energy_last_session, 2)
+                # ponytail: smaller drops are meter jitter; exact resets need a BLE session ID, which is not reported.
+                if delta >= 0 or delta <= -ENERGY_RESET_DROP_KWH:
+                    self.energy_total = round(self.energy_total + (delta if delta >= 0 else session_energy), 2)
+                    self._energy_last_session = session_energy
             self._save_energy()
         self.charge_state = state
         self.charge_state_received_at = dt_util.utcnow()
         self._received_state("charge_state")
 
     def _save_energy(self) -> None:
-        self._store.save("energy", json.dumps({
-            "total": self.energy_total,
-            "last_session": self._energy_last_session,
-            "tracking_since": self.energy_tracking_since,
-        }).encode())
+        self._store.save(
+            "energy",
+            json.dumps(
+                {
+                    "total": self.energy_total,
+                    "last_session": self._energy_last_session,
+                    "tracking_since": self.energy_tracking_since,
+                }
+            ).encode(),
+        )
 
     def _on_climate_state(self, state: dict[str, Any]) -> None:
         self._remember_capabilities(state)
@@ -407,10 +423,20 @@ class TeslaBLEManager:
         self._received_state("closures_state")
 
     def _remember_capabilities(self, state: dict[str, Any]) -> None:
-        observed = {key for key in state if key.startswith(("seat_heater_", "seat_fan_", "auto_seat_climate_")) or key in {
-            "steering_wheel_heater", "auto_steering_wheel_heat", "steering_wheel_heat_level",
-            "cabin_overheat_protection", "cop_activation_temperature", "sun_roof_percent_open",
-        }}
+        observed = {
+            key
+            for key in state
+            if key.startswith(("seat_heater_", "seat_fan_", "auto_seat_climate_"))
+            or key
+            in {
+                "steering_wheel_heater",
+                "auto_steering_wheel_heat",
+                "steering_wheel_heat_level",
+                "cabin_overheat_protection",
+                "cop_activation_temperature",
+                "sun_roof_percent_open",
+            }
+        }
         if not observed.issubset(self.capabilities):
             self.capabilities.update(observed)
             self._store.save("capabilities", json.dumps(sorted(self.capabilities)).encode())
@@ -446,9 +472,7 @@ class TeslaBLEManager:
         if self._transport.is_connected:
             return
         if time.monotonic() < self._connect_blocked_until:
-            raise HomeAssistantError(
-                f"Tesla {self.vin[-6:]} is not reachable over Bluetooth; retrying soon"
-            )
+            raise HomeAssistantError(f"Tesla {self.vin[-6:]} is not reachable over Bluetooth; retrying soon")
         await self._store.async_flush()
         if self._stopped or self.hass.is_stopping:
             raise HomeAssistantError("Tesla BLE integration is unloaded")
@@ -485,7 +509,7 @@ class TeslaBLEManager:
         async with self._work():
             try:
                 await self._async_run_tick()
-            except (HomeAssistantError, ConnectionError):
+            except HomeAssistantError, ConnectionError:
                 _LOGGER.debug("Vehicle unavailable during tick", exc_info=True)
             self._sync_pairing()
             self._notify()
@@ -523,8 +547,12 @@ class TeslaBLEManager:
 
     def _infotainment_poll_decision(self, now_ms: int) -> dict[str, Any]:
         is_asleep = self.state_fresh("vehicle_status") and bool(self.vehicle_status.get("asleep", False))
-        is_charging = self.state_fresh("charge_state") and self.charge_state.get("charging_state") in CHARGING_ACTIVE_STATES
-        is_sentry = self.state_fresh("closures_state") and tesla_ble.sentry_mode_active(self.closures_state.get("sentry_mode_state", 0))
+        is_charging = (
+            self.state_fresh("charge_state") and self.charge_state.get("charging_state") in CHARGING_ACTIVE_STATES
+        )
+        is_sentry = self.state_fresh("closures_state") and tesla_ble.sentry_mode_active(
+            self.closures_state.get("sentry_mode_state", 0)
+        )
         return self._poll_policy.update(now_ms, is_asleep, is_charging, is_sentry)
 
     async def _async_handle_polls(self) -> None:
@@ -667,12 +695,12 @@ class TeslaBLEManager:
         await self.async_command("Set Charging Limit", lambda cb: self._vehicle.set_charging_limit(limit, cb))
 
     async def async_set_climate(self, enable: bool) -> None:
-        await self.async_command("Climate On" if enable else "Climate Off", lambda cb: self._vehicle.set_climate(enable, cb))
+        await self.async_command(
+            "Climate On" if enable else "Climate Off", lambda cb: self._vehicle.set_climate(enable, cb)
+        )
 
     async def async_set_climate_temp(self, temp_celsius: float) -> None:
-        await self.async_command(
-            "Set Climate Temp", lambda cb: self._vehicle.set_climate_temp(temp_celsius, cb)
-        )
+        await self.async_command("Set Climate Temp", lambda cb: self._vehicle.set_climate_temp(temp_celsius, cb))
 
     async def async_set_climate_keeper(self, mode: int) -> None:
         names = {0: "Climate Keeper Off", 1: "Climate Keeper On", 2: "Climate Keeper Dog", 3: "Climate Keeper Camp"}
@@ -701,18 +729,31 @@ class TeslaBLEManager:
     async def async_set_seat_climate(self, seat: tesla_ble.SeatPosition, level: int, cooling: bool) -> None:
         """The library owns the Off sequence and cancellation."""
         cool_field = SEAT_COOL_FIELDS.get(seat)
-        await self.async_command("Set Seat Climate", lambda cb: self._vehicle.set_seat_climate(
-            seat, level, cooling, cool_field in self.capabilities, cb,
-        ))
+        await self.async_command(
+            "Set Seat Climate",
+            lambda cb: self._vehicle.set_seat_climate(
+                seat,
+                level,
+                cooling,
+                cool_field in self.capabilities,
+                cb,
+            ),
+        )
 
     async def async_set_auto_seat_climate(self, seat: tesla_ble.SeatPosition, enable: bool) -> None:
-        await self.async_command("Set Auto Seat Climate", lambda cb: self._vehicle.set_auto_seat_climate(seat, enable, cb))
+        await self.async_command(
+            "Set Auto Seat Climate", lambda cb: self._vehicle.set_auto_seat_climate(seat, enable, cb)
+        )
 
     async def async_set_cabin_overheat_protection(self, mode: int) -> None:
-        await self.async_command("Cabin Overheat Protection", lambda cb: self._vehicle.set_cabin_overheat_protection(mode, cb))
+        await self.async_command(
+            "Cabin Overheat Protection", lambda cb: self._vehicle.set_cabin_overheat_protection(mode, cb)
+        )
 
     async def async_set_cabin_overheat_temperature(self, level: int) -> None:
-        await self.async_command("Cabin Overheat Temp", lambda cb: self._vehicle.set_cabin_overheat_protection_temp(level, cb))
+        await self.async_command(
+            "Cabin Overheat Temp", lambda cb: self._vehicle.set_cabin_overheat_protection_temp(level, cb)
+        )
 
     async def async_set_sunroof_position(self, percent: int) -> None:
         await self.async_command("Set Sunroof Position", lambda cb: self._vehicle.set_sunroof_position(percent, cb))
@@ -778,9 +819,7 @@ class TeslaBLEManager:
         """Start installing a downloaded update immediately."""
         if not self.state_fresh("software_update_state") or self.software_update_state.get("status") != 4:
             raise HomeAssistantError("No freshly reported, ready-to-install vehicle update")
-        await self.async_command(
-            "Schedule Software Update", lambda cb: self._vehicle.schedule_software_update(0, cb)
-        )
+        await self.async_command("Schedule Software Update", lambda cb: self._vehicle.schedule_software_update(0, cb))
 
     async def async_cancel_software_update(self) -> None:
         if not self.state_fresh("software_update_state") or self.software_update_state.get("status") not in (3, 5, 6):

@@ -199,8 +199,13 @@ async def run(args: argparse.Namespace) -> int:
             print("Pairing: tap a key card on the center console now ...")
             vehicle.pair(tesla_ble.KeysRole.OWNER, command_results.append)
         polling = args.poll or not (
-            args.lock or args.unlock or args.pair or args.wake
-            or args.charging is not None or args.amps is not None or args.limit is not None
+            args.lock
+            or args.unlock
+            or args.pair
+            or args.wake
+            or args.charging is not None
+            or args.amps is not None
+            or args.limit is not None
         )
         if polling:
             vehicle.vcsec_poll()
@@ -214,7 +219,9 @@ async def run(args: argparse.Namespace) -> int:
                 while adapter.queue:
                     frame = adapter.queue.pop(0)
                     for offset in range(0, len(frame), WRITE_CHUNK_SIZE):
-                        await client.write_gatt_char(WRITE_UUID, frame[offset:offset + WRITE_CHUNK_SIZE], response=False)
+                        await client.write_gatt_char(
+                            WRITE_UUID, frame[offset : offset + WRITE_CHUNK_SIZE], response=False
+                        )
                 if vehicle.pending_command_count == 0:
                     completed = bool(states) if polling else bool(command_results)
                     break

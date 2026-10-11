@@ -90,7 +90,9 @@ class TeslaFirmwareUpdate(TeslaBLEEntity, UpdateEntity):
 
     async def async_install(self, version: str | None, backup: bool, **kwargs: Any) -> None:
         if version is not None or backup:
-            raise HomeAssistantError("Only the update offered by the vehicle can be installed; backups are not supported")
+            raise HomeAssistantError(
+                "Only the update offered by the vehicle can be installed; backups are not supported"
+            )
         await self.manager.async_install_software_update()
 
     async def async_cancel(self) -> None:

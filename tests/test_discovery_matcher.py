@@ -14,11 +14,10 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
-from homeassistant.components.bluetooth.match import BluetoothMatcherIndex, ble_device_matches
+import pytest
+from homeassistant.components.bluetooth.match import BluetoothMatcherIndex
 
-MANIFEST = json.loads(
-    (Path(__file__).parent.parent / "custom_components" / "tesla_ble" / "manifest.json").read_text()
-)
+MANIFEST = json.loads((Path(__file__).parent.parent / "custom_components" / "tesla_ble" / "manifest.json").read_text())
 
 BEACON = bytes.fromhex("021574278bdab64445208f0c720eaf05993501009970c5")
 TESLA_UUID_1122 = "00001122-0000-1000-8000-00805f9b34fb"
@@ -38,38 +37,21 @@ def advert(**overrides) -> SimpleNamespace:
     return SimpleNamespace(**base)
 
 
-def _matches(info: SimpleNamespace) -> bool:
-    return any(ble_device_matches(matcher, info) for matcher in MANIFEST["bluetooth"])
-
-
-def test_real_car_advert_matches_manifest() -> None:
-    info = advert(
-        name="S93a7bbb50e28cfdbC",
-        service_uuids={TESLA_UUID_1122},
-        manufacturer_data={76: BEACON},
-    )
-    assert _matches(info)
-
-
-def test_passive_scanner_without_name_matches() -> None:
-    """Passive-only proxies forward the beacon payload but may omit the name."""
-    assert _matches(advert(manufacturer_data={76: BEACON}))
-
-
-def test_advert_with_gatt_service_uuid_matches() -> None:
-    assert _matches(advert(service_uuids={TESLA_UUID_211}))
-
-
-def test_new_scheme_name_matches() -> None:
-    assert _matches(advert(name="Tesla 123456"))
-
-
-def test_unrelated_device_does_not_match() -> None:
-    info = advert(name="Smart CO Alarm", manufacturer_data={76: b"\x02\x15\x00\x00"})
-    assert not _matches(info)
-
-
-def test_matchers_survive_ha_indexing() -> None:
+@pytest.mark.parametrize(
+    ("info", "expected"),
+    [
+        pytest.param(
+            advert(name="S93a7bbb50e28cfdbC", service_uuids={TESLA_UUID_1122}, manufacturer_data={76: BEACON}),
+            True,
+            id="real-car",
+        ),
+        pytest.param(advert(manufacturer_data={76: BEACON}), True, id="passive-beacon"),
+        pytest.param(advert(service_uuids={TESLA_UUID_211}), True, id="gatt-service"),
+        pytest.param(advert(name="Tesla 123456"), True, id="name-only"),
+        pytest.param(advert(name="Smart CO Alarm", manufacturer_data={76: b"\x02\x15\x00\x00"}), False, id="unrelated"),
+    ],
+)
+def test_matchers_survive_ha_indexing(info: SimpleNamespace, expected: bool) -> None:
     """HA buckets local-name matchers by their first three characters.
 
     A pattern whose first characters are not literal is filed under an
@@ -80,7 +62,4 @@ def test_matchers_survive_ha_indexing() -> None:
         index.add(matcher)
     index.build()
 
-    assert index.match(advert(name="S93a7bbb50e28cfdbC", service_uuids={TESLA_UUID_1122}, manufacturer_data={76: BEACON}))
-    assert index.match(advert(name="Tesla 123456"))
-    assert index.match(advert(manufacturer_data={76: BEACON}))
-    assert not index.match(advert(name="Smart CO Alarm"))
+    assert bool(index.match(info)) is expected

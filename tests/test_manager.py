@@ -95,8 +95,16 @@ async def setup_entry(
 
     from homeassistant.components import bluetooth
 
-    monkeypatch.setattr(bluetooth, "async_ble_device_from_address", lambda *a, **kw: SimpleNamespace(address=ADDRESS, name="Tesla", rssi=-64))
-    monkeypatch.setattr(bluetooth, "async_last_service_info", lambda *a, **kw: SimpleNamespace(address=ADDRESS, name="Tesla", rssi=-64, time=time.monotonic()))
+    monkeypatch.setattr(
+        bluetooth,
+        "async_ble_device_from_address",
+        lambda *a, **kw: SimpleNamespace(address=ADDRESS, name="Tesla", rssi=-64),
+    )
+    monkeypatch.setattr(
+        bluetooth,
+        "async_last_service_info",
+        lambda *a, **kw: SimpleNamespace(address=ADDRESS, name="Tesla", rssi=-64, time=time.monotonic()),
+    )
     monkeypatch.setattr(ble_module, "establish_connection", establish)
 
     data = {CONF_VIN: VIN, CONF_ADDRESS: ADDRESS}
@@ -210,7 +218,9 @@ async def test_charging_switch_completes(hass: HomeAssistant, sim, monkeypatch, 
 
 
 async def test_pair_button_persists_key(hass: HomeAssistant, sim, monkeypatch, hass_storage, enable_bluetooth) -> None:
-    monkeypatch.setattr("custom_components.tesla_ble.button.TeslaPairButton._attr_entity_registry_enabled_default", True)
+    monkeypatch.setattr(
+        "custom_components.tesla_ble.button.TeslaPairButton._attr_entity_registry_enabled_default", True
+    )
     entry, _client = await setup_entry(hass, sim, monkeypatch, hass_storage, with_key=False)
     manager = entry.runtime_data
     button_id = er.async_get(hass).async_get_entity_id("button", DOMAIN, f"{VIN}_button_pair")
@@ -271,7 +281,9 @@ async def test_wedged_link_is_cycled(hass: HomeAssistant, sim, monkeypatch, hass
 
 
 async def test_pairing_issue_when_no_key(hass: HomeAssistant, sim, monkeypatch, hass_storage, enable_bluetooth) -> None:
-    monkeypatch.setattr("custom_components.tesla_ble.button.TeslaPairButton._attr_entity_registry_enabled_default", True)
+    monkeypatch.setattr(
+        "custom_components.tesla_ble.button.TeslaPairButton._attr_entity_registry_enabled_default", True
+    )
     from homeassistant.helpers import issue_registry as ir
 
     from custom_components.tesla_ble.const import ISSUE_PAIRING_REQUIRED
@@ -456,7 +468,11 @@ async def test_multiple_vehicles(hass: HomeAssistant, monkeypatch, hass_storage,
 
     from homeassistant.components import bluetooth
 
-    monkeypatch.setattr(bluetooth, "async_ble_device_from_address", lambda _hass, address, **kw: SimpleNamespace(address=address, name="Tesla"))
+    monkeypatch.setattr(
+        bluetooth,
+        "async_ble_device_from_address",
+        lambda _hass, address, **kw: SimpleNamespace(address=address, name="Tesla"),
+    )
     monkeypatch.setattr(ble_module, "establish_connection", establish)
 
     entries = []
@@ -630,7 +646,9 @@ async def test_presence_tracker_follows_reachability(hass, sim, monkeypatch, has
     await manager.async_set_polling(True)
     sim.set_battery_level(51)
     await manager.async_force_update()
-    await settle_until(hass, lambda: manager.charge_state.get("battery_level") == 51 and manager._vehicle.pending_command_count == 0)
+    await settle_until(
+        hass, lambda: manager.charge_state.get("battery_level") == 51 and manager._vehicle.pending_command_count == 0
+    )
     assert state_of(hass, "device_tracker", f"{VIN}_tracker") == "home"
     assert manager.charge_state["charging_amps"] == original_amps
     assert manager._store.load("private_key") == key and manager.paired
@@ -743,7 +761,10 @@ async def test_entity_cleanup_and_defaults_preserve_existing_power_entity(hass, 
     registry.async_update_entity(power_id, name="My charging power")
     registry.async_update_entity_options(power_id, "sensor", {"unit_of_measurement": "kW"})
     retired = registry.async_get_or_create(
-        "sensor", DOMAIN, f"{VIN}_sensor_charger_power_estimated", config_entry=entry,
+        "sensor",
+        DOMAIN,
+        f"{VIN}_sensor_charger_power_estimated",
+        config_entry=entry,
         suggested_object_id="old_power_estimate",
     )
     await hass.config_entries.async_reload(entry.entry_id)
@@ -753,7 +774,14 @@ async def test_entity_cleanup_and_defaults_preserve_existing_power_entity(hass, 
     assert registry.async_get_entity_id("sensor", DOMAIN, f"{VIN}_sensor_charger_power") == power_id
     enabled = [s for s in hass.states.async_all("sensor") if s.attributes.get("device_class") in ("power", "energy")]
     assert sorted(s.attributes["device_class"] for s in enabled) == ["energy", "power"]
-    for key in ("button_pair", "button_regenerate_key", "sensor_evse_max_current", "sensor_vehicle_max_charge_current", "sensor_charge_current_request", "sensor_charger_phases"):
+    for key in (
+        "button_pair",
+        "button_regenerate_key",
+        "sensor_evse_max_current",
+        "sensor_vehicle_max_charge_current",
+        "sensor_charge_current_request",
+        "sensor_charger_phases",
+    ):
         domain = key.split("_", 1)[0]
         entity_id = registry.async_get_entity_id(domain, DOMAIN, f"{VIN}_{key}")
         assert registry.async_get(entity_id).disabled_by == er.RegistryEntryDisabler.INTEGRATION
@@ -788,7 +816,7 @@ async def test_energy_accumulates_observed_sessions_and_survives_reload(hass, si
     manager._on_charge_state({"charge_energy_added": 7.5})
     assert float(hass.states.get(energy_id).state) == 0
     started = hass.states.get(energy_id).attributes["tracking_since"]
-    for value in (8.5, 8.5, float("nan"), -1, None):
+    for value in (8.5, 8.5, 8.48, 8.5, float("nan"), -1, None):
         manager._on_charge_state({"charge_energy_added": value})
     assert float(hass.states.get(energy_id).state) == 1
     await hass.config_entries.async_reload(entry.entry_id)
@@ -814,7 +842,9 @@ async def test_automatic_poll_does_not_wake_car_with_stale_awake_telemetry(hass,
     await manager.async_set_polling(False)
     sim.set_sleeping(True)
     await manager.async_force_update()
-    await settle_until(hass, lambda: manager.vehicle_status.get("asleep") and manager._vehicle.pending_command_count == 0)
+    await settle_until(
+        hass, lambda: manager.vehicle_status.get("asleep") and manager._vehicle.pending_command_count == 0
+    )
     manager.vehicle_status = dict(manager.vehicle_status, asleep=False)
     manager._poll_policy.set_active_interval_ms(0)
     manager._poll_policy.set_awake_interval_ms(0)
@@ -842,9 +872,10 @@ async def test_charge_completion_time_is_anchored_to_telemetry(hass, sim, monkey
         manager._notify()
         assert state_of(hass, "sensor", f"{VIN}_sensor_minutes_to_full_charge") == initial
         manager._on_charge_state(state)
-        assert state_of(hass, "sensor", f"{VIN}_sensor_minutes_to_full_charge") == (
-            later + timedelta(minutes=60)
-        ).replace(microsecond=0).isoformat()
+        assert (
+            state_of(hass, "sensor", f"{VIN}_sensor_minutes_to_full_charge")
+            == (later + timedelta(minutes=60)).replace(microsecond=0).isoformat()
+        )
     manager._on_charge_state(dict(state, minutes_to_full_charge=0))
     assert state_of(hass, "sensor", f"{VIN}_sensor_minutes_to_full_charge") == "unknown"
 
@@ -865,7 +896,9 @@ async def test_optional_controls_detect_capabilities_and_follow_reported_state(h
     sim.set_cabin_overheat_protection_temp(1)
     sim.set_sunroof_percent(0)
     await manager.async_force_update()
-    await settle_until(hass, lambda: "seat_heater_left" in manager.climate_state and manager._vehicle.pending_command_count == 0)
+    await settle_until(
+        hass, lambda: "seat_heater_left" in manager.climate_state and manager._vehicle.pending_command_count == 0
+    )
     await hass.async_block_till_done()
 
     heat_id = registry.async_get_entity_id("select", DOMAIN, f"{VIN}_select_seat_climate_left")
@@ -875,21 +908,34 @@ async def test_optional_controls_detect_capabilities_and_follow_reported_state(h
     assert registry.async_get_entity_id("select", DOMAIN, f"{VIN}_select_seat_fan_front_left") is None
     assert registry.async_get_entity_id("switch", DOMAIN, f"{VIN}_switch_auto_seat_climate_left") is None
     assert hass.states.get(heat_id).attributes["options"] == [
-        "Off", "Low heat", "Medium heat", "High heat", "Low cool", "Medium cool", "High cool", "Auto"
+        "Off",
+        "Low heat",
+        "Medium heat",
+        "High heat",
+        "Low cool",
+        "Medium cool",
+        "High cool",
+        "Auto",
     ]
     assert hass.states.get(heat_id).attributes["icon"] == "mdi:car-seat"
-    await hass.services.async_call("select", "select_option", {"entity_id": heat_id, "option": "High heat"}, blocking=True)
+    await hass.services.async_call(
+        "select", "select_option", {"entity_id": heat_id, "option": "High heat"}, blocking=True
+    )
     await hass.services.async_call("select", "select_option", {"entity_id": heat_id, "option": "Off"}, blocking=True)
     await settle_until(hass, lambda: manager._vehicle.pending_command_count == 0)
     assert manager.climate_state["seat_heater_left"] == 0
     await hass.services.async_call("select", "select_option", {"entity_id": heat_id, "option": "Auto"}, blocking=True)
     await settle_until(hass, lambda: hass.states.get(heat_id).state == "Auto")
     assert manager.climate_state["auto_seat_climate_left"] is True
-    await hass.services.async_call("select", "select_option", {"entity_id": heat_id, "option": "High heat"}, blocking=True)
+    await hass.services.async_call(
+        "select", "select_option", {"entity_id": heat_id, "option": "High heat"}, blocking=True
+    )
     await settle_until(hass, lambda: hass.states.get(heat_id).state == "High heat")
     assert manager.climate_state["auto_seat_climate_left"] is False
     assert hass.states.get(heat_id).attributes["icon"] == "mdi:car-seat-heater"
-    await hass.services.async_call("select", "select_option", {"entity_id": heat_id, "option": "Medium cool"}, blocking=True)
+    await hass.services.async_call(
+        "select", "select_option", {"entity_id": heat_id, "option": "Medium cool"}, blocking=True
+    )
     await settle_until(hass, lambda: hass.states.get(heat_id).state == "Medium cool")
     assert manager.climate_state["seat_heater_left"] == 0
     assert hass.states.get(heat_id).attributes["icon"] == "mdi:car-seat-cooler"
@@ -918,13 +964,15 @@ async def test_optional_controls_detect_capabilities_and_follow_reported_state(h
 
 def test_software_update_release_url():
     """A known update version links to its release announcement."""
-    manager = SimpleNamespace(vin=VIN, device_name="Tesla", address=ADDRESS,
-                              software_update_state={"status": 4, "version": "2026.40.1 abc123"})
+    manager = SimpleNamespace(
+        vin=VIN,
+        device_name="Tesla",
+        address=ADDRESS,
+        software_update_state={"status": 4, "version": "2026.40.1 abc123"},
+    )
     entity = TeslaFirmwareUpdate(manager)
     assert entity.latest_version == "2026.40.1 abc123"
-    assert entity.release_url == (
-        "https://www.notateslaapp.com/software-updates/version/2026.40.1/release-notes"
-    )
+    assert entity.release_url == ("https://www.notateslaapp.com/software-updates/version/2026.40.1/release-notes")
     manager.software_update_state = {}
     assert entity.release_url is None
 
@@ -1083,7 +1131,10 @@ async def test_pairing_issues_are_entry_scoped_and_removal_deletes_credentials(h
     key = TEST_PRIVATE_KEY_PEM.encode() + b"\0"
     hass_storage[f"{DOMAIN}.{second.entry_id}"] = {
         "version": 1,
-        "data": {"private_key": base64.b64encode(key).decode(), "paired_key": base64.b64encode(hashlib.sha256(key).hexdigest().encode()).decode()},
+        "data": {
+            "private_key": base64.b64encode(key).decode(),
+            "paired_key": base64.b64encode(hashlib.sha256(key).hexdigest().encode()).decode(),
+        },
     }
     second.add_to_hass(hass)
     assert await hass.config_entries.async_setup(second.entry_id)

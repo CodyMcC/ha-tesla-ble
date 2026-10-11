@@ -27,9 +27,13 @@ async def async_setup_entry(
             TeslaPollingSwitch(manager),
         ]
     )
-    async_add_supported_entities(manager, async_add_entities, [
-        (TeslaSteeringWheelHeatSwitch(manager), ("steering_wheel_heater",)),
-    ])
+    async_add_supported_entities(
+        manager,
+        async_add_entities,
+        [
+            (TeslaSteeringWheelHeatSwitch(manager), ("steering_wheel_heater",)),
+        ],
+    )
 
 
 class TeslaChargingSwitch(TeslaBLEEntity, SwitchEntity):

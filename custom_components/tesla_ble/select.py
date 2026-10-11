@@ -24,10 +24,16 @@ COOL_OPTIONS = ("Low cool", "Medium cool", "High cool")
 # Seat translation key -> (seat position, heater field, cooling field or None, auto field or None)
 SEATS = {
     "seat_climate_left": (
-        tesla_ble.SeatPosition.FRONT_LEFT, "seat_heater_left", "seat_fan_front_left", "auto_seat_climate_left"
+        tesla_ble.SeatPosition.FRONT_LEFT,
+        "seat_heater_left",
+        "seat_fan_front_left",
+        "auto_seat_climate_left",
     ),
     "seat_climate_right": (
-        tesla_ble.SeatPosition.FRONT_RIGHT, "seat_heater_right", "seat_fan_front_right", "auto_seat_climate_right"
+        tesla_ble.SeatPosition.FRONT_RIGHT,
+        "seat_heater_right",
+        "seat_fan_front_right",
+        "auto_seat_climate_right",
     ),
     "seat_heater_rear_left": (tesla_ble.SeatPosition.REAR_LEFT, "seat_heater_rear_left", None, None),
     "seat_heater_rear_right": (tesla_ble.SeatPosition.REAR_RIGHT, "seat_heater_rear_right", None, None),
@@ -39,7 +45,9 @@ SEATS = {
 }
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: TeslaBLEConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
+async def async_setup_entry(
+    hass: HomeAssistant, entry: TeslaBLEConfigEntry, async_add_entities: AddEntitiesCallback
+) -> None:
     manager = entry.runtime_data
     entities = [
         (
@@ -48,10 +56,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: TeslaBLEConfigEntry, asy
         )
         for key, (seat, heat_field, cool_field, auto_field) in SEATS.items()
     ]
-    entities.extend([
-        (TeslaCabinProtectionSelect(manager), ("cabin_overheat_protection",)),
-        (TeslaCabinProtectionTemperatureSelect(manager), ("cop_activation_temperature",)),
-    ])
+    entities.extend(
+        [
+            (TeslaCabinProtectionSelect(manager), ("cabin_overheat_protection",)),
+            (TeslaCabinProtectionTemperatureSelect(manager), ("cop_activation_temperature",)),
+        ]
+    )
     async_add_supported_entities(manager, async_add_entities, entities)
 
 
@@ -141,7 +151,9 @@ class TeslaCabinProtectionSelect(TeslaBLEEntity, SelectEntity):
     @property
     def options(self) -> list[str]:
         state = self.manager.climate_state
-        supports_fan = state.get("supports_fan_only_cabin_overheat_protection") or state.get("cabin_overheat_protection") == 2
+        supports_fan = (
+            state.get("supports_fan_only_cabin_overheat_protection") or state.get("cabin_overheat_protection") == 2
+        )
         return ["Off", "On", "Fan only"] if supports_fan else ["Off", "On"]
 
     @property
@@ -152,10 +164,15 @@ class TeslaCabinProtectionSelect(TeslaBLEEntity, SelectEntity):
     @property
     def extra_state_attributes(self) -> dict:
         state = self.manager.climate_state
-        return {key: state.get(key) for key in (
-            "allow_cabin_overheat_protection", "supports_fan_only_cabin_overheat_protection",
-            "cabin_overheat_protection_actively_cooling", "cop_not_running_reason",
-        )}
+        return {
+            key: state.get(key)
+            for key in (
+                "allow_cabin_overheat_protection",
+                "supports_fan_only_cabin_overheat_protection",
+                "cabin_overheat_protection_actively_cooling",
+                "cop_not_running_reason",
+            )
+        }
 
     async def async_select_option(self, option: str) -> None:
         if option != "Off" and self.manager.climate_state.get("allow_cabin_overheat_protection") is False:
