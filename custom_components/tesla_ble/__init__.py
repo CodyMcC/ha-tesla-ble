@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady, HomeAssistantError
+from homeassistant.helpers import entity_registry as er
 
 from .const import TeslaBLEConfigEntry
 from .manager import TeslaBLEManager
@@ -22,7 +23,9 @@ PLATFORMS = [
     "lock",
     "number",
     "sensor",
+    "select",
     "switch",
+    "update",
 ]
 
 
@@ -33,6 +36,41 @@ async def async_setup_entry(hass: HomeAssistant, entry: TeslaBLEConfigEntry) -> 
     except HomeAssistantError as err:
         raise ConfigEntryNotReady(str(err)) from err
     entry.runtime_data = manager
+    registry = er.async_get(hass)
+    if "steering_wheel_heater" not in manager.capabilities:
+        steering_id = registry.async_get_entity_id("switch", "tesla_ble", f"{manager.vin}_switch_steering_wheel_heat")
+        if steering_id and registry.async_get(steering_id).disabled_by is None:
+            registry.async_update_entity(steering_id, disabled_by=er.RegistryEntryDisabler.INTEGRATION)
+    if power_id := registry.async_get_entity_id("sensor", "tesla_ble", f"{manager.vin}_sensor_charger_power"):
+        power_options = dict(registry.async_get(power_id).options.get("sensor", {}))
+        if power_options.get("unit_of_measurement") == "kW":
+            registry.async_update_entity_options(power_id, "sensor", {**power_options, "unit_of_measurement": "W"})
+    for domain, key in (
+        ("sensor", "software_update"),
+        ("sensor", "charger_power_estimated"),
+        ("sensor", "charge_limit_soc"),
+        ("button", "software_update_install"),
+        ("button", "software_update_cancel"),
+        ("binary_sensor", "windows"),
+        ("binary_sensor", "sunroof"),
+        ("select", "seat_fan_front_left"),
+        ("select", "seat_fan_front_right"),
+        ("select", "seat_heater_left"),
+        ("select", "seat_heater_right"),
+        ("switch", "auto_seat_climate_left"),
+        ("switch", "auto_seat_climate_right"),
+        ("binary_sensor", "door_driver_front"),
+        ("binary_sensor", "door_driver_rear"),
+        ("binary_sensor", "door_passenger_front"),
+        ("binary_sensor", "door_passenger_rear"),
+        ("binary_sensor", "window_driver_front"),
+        ("binary_sensor", "window_driver_rear"),
+        ("binary_sensor", "window_passenger_front"),
+        ("binary_sensor", "window_passenger_rear"),
+    ):
+        prefix = "binary" if domain == "binary_sensor" else domain
+        if entity_id := registry.async_get_entity_id(domain, "tesla_ble", f"{manager.vin}_{prefix}_{key}"):
+            registry.async_remove(entity_id)
     try:
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     except BaseException:

@@ -1,0 +1,7 @@
+cancel_software_update:
+  name: Cancel vehicle software update
+  description: Cancel a scheduled vehicle firmware installation or an ongoing download. An installation already in progress cannot be cancelled.
+  target:
+    entity:
+      integration: tesla_ble
+      domain: update

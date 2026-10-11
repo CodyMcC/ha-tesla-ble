@@ -62,29 +62,25 @@ WINDOW_KEYS = {
 
 
 def _any(values: list[bool | None]) -> bool | None:
-    return None if all(value is None for value in values) else any(values)
+    return True if any(values) else None if None in values else False
 
 
 def _any_closure(manager: TeslaBLEManager) -> bool | None:
     return _any([_closure(manager, key) for key in DOOR_KEYS.values()])
 
 
-def _any_window(manager: TeslaBLEManager) -> bool | None:
-    return _any([_window(manager, key) for key in WINDOW_KEYS.values()])
-
-
 def _closure_attributes(manager: TeslaBLEManager) -> dict[str, str] | None:
     values = {label: _closure(manager, key) for label, key in DOOR_KEYS.items()}
     if all(value is None for value in values.values()):
         return None
-    return {label: "Open" if value else "Closed" for label, value in values.items()}
+    return {label: "Unknown" if value is None else "Open" if value else "Closed" for label, value in values.items()}
 
 
 def _window_attributes(manager: TeslaBLEManager) -> dict[str, str] | None:
     values = {label: _window(manager, key) for label, key in WINDOW_KEYS.items()}
     if all(value is None for value in values.values()):
         return None
-    return {label: "Open" if value else "Closed" for label, value in values.items()}
+    return {label: "Unknown" if value is None else "Open" if value else "Closed" for label, value in values.items()}
 
 
 def _scheduled_charging(manager: TeslaBLEManager) -> bool | None:
@@ -141,90 +137,11 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[TeslaBinarySensorDescription, ...] = (
         ),
     ),
     TeslaBinarySensorDescription(
-        key="sunroof",
-        state="closures_state",
-        value_fn=lambda m: (
-            None
-            if m.closures_state.get("sun_roof_percent_open") is None
-            else m.closures_state["sun_roof_percent_open"] > 0
-        ),
-        device_class=BinarySensorDeviceClass.WINDOW,
-        entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
-    ),
-    TeslaBinarySensorDescription(
-        key="door_driver_front",
-        value_fn=lambda m: _closure(m, "front_driver_door"),
-        device_class=BinarySensorDeviceClass.DOOR,
-        entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
-    ),
-    TeslaBinarySensorDescription(
-        key="door_passenger_front",
-        value_fn=lambda m: _closure(m, "front_passenger_door"),
-        device_class=BinarySensorDeviceClass.DOOR,
-        entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
-    ),
-    TeslaBinarySensorDescription(
-        key="door_driver_rear",
-        value_fn=lambda m: _closure(m, "rear_driver_door"),
-        device_class=BinarySensorDeviceClass.DOOR,
-        entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
-    ),
-    TeslaBinarySensorDescription(
-        key="door_passenger_rear",
-        value_fn=lambda m: _closure(m, "rear_passenger_door"),
-        device_class=BinarySensorDeviceClass.DOOR,
-        entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
-    ),
-    TeslaBinarySensorDescription(
-        key="window_driver_front",
-        state="closures_state",
-        value_fn=lambda m: _window(m, "window_open_driver_front"),
-        device_class=BinarySensorDeviceClass.WINDOW,
-        entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
-    ),
-    TeslaBinarySensorDescription(
-        key="window_passenger_front",
-        state="closures_state",
-        value_fn=lambda m: _window(m, "window_open_passenger_front"),
-        device_class=BinarySensorDeviceClass.WINDOW,
-        entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
-    ),
-    TeslaBinarySensorDescription(
-        key="window_driver_rear",
-        state="closures_state",
-        value_fn=lambda m: _window(m, "window_open_driver_rear"),
-        device_class=BinarySensorDeviceClass.WINDOW,
-        entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
-    ),
-    TeslaBinarySensorDescription(
-        key="window_passenger_rear",
-        state="closures_state",
-        value_fn=lambda m: _window(m, "window_open_passenger_rear"),
-        device_class=BinarySensorDeviceClass.WINDOW,
-        entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
-    ),
-    TeslaBinarySensorDescription(
         key="doors",
         state="vehicle_status",
         value_fn=_any_closure,
         attrs_fn=_closure_attributes,
         device_class=BinarySensorDeviceClass.DOOR,
-    ),
-    TeslaBinarySensorDescription(
-        key="windows",
-        state="closures_state",
-        value_fn=_any_window,
-        attrs_fn=_window_attributes,
-        device_class=BinarySensorDeviceClass.WINDOW,
     ),
     TeslaBinarySensorDescription(
         key="scheduled_charging",

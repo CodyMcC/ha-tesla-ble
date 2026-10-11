@@ -1,0 +1,46 @@
+{
+  "services": {
+    "cancel_software_update": "mdi:calendar-remove"
+  },
+  "entity": {
+    "binary_sensor": {
+      "asleep": {"default": "mdi:sleep", "state": {"off": "mdi:sleep-off"}},
+      "connection": {"default": "mdi:bluetooth-connect", "state": {"off": "mdi:bluetooth-off"}},
+      "parking_brake": {"default": "mdi:parking"},
+      "scheduled_charging": {"default": "mdi:calendar-clock"},
+      "scheduled_departure": {"default": "mdi:calendar-arrow-right"},
+      "doors": {"default": "mdi:car-door"}
+    },
+    "button": {
+      "wake": {"default": "mdi:sleep-off"},
+      "pair": {"default": "mdi:key-plus"},
+      "regenerate_key": {"default": "mdi:key-change"},
+      "force_update": {"default": "mdi:refresh"},
+      "flash_lights": {"default": "mdi:car-light-high"},
+      "honk_horn": {"default": "mdi:bullhorn"},
+      "unlatch_driver_door": {"default": "mdi:car-door-lock-open"}
+    },
+    "cover": {
+      "trunk": {"default": "mdi:car-back"},
+      "frunk": {"default": "mdi:car"},
+      "charge_port": {"default": "mdi:ev-plug-tesla"}
+    },
+    "device_tracker": {
+      "vehicle": {"default": "mdi:car-electric"}
+    },
+    "lock": {
+      "doors": {"default": "mdi:car-door-lock", "state": {"unlocked": "mdi:car-door-lock-open"}},
+      "charge_port_latch": {"default": "mdi:ev-plug-tesla"}
+    },
+    "number": {
+      "charge_limit": {"default": "mdi:battery-arrow-up"},
+      "charge_amps": {"default": "mdi:current-ac"}
+    },
+    "switch": {
+      "charging": {"default": "mdi:ev-station"},
+      "steering_wheel_heat": {"default": "mdi:steering"},
+      "sentry_mode": {"default": "mdi:shield-car"},
+      "polling": {"default": "mdi:sync", "state": {"off": "mdi:sync-off"}}
+    }
+  }
+}

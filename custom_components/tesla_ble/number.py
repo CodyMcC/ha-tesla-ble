@@ -41,7 +41,6 @@ class TeslaChargingLimitNumber(TeslaBLEEntity, NumberEntity):
     _attr_native_step = 1
     _attr_native_unit_of_measurement = PERCENTAGE
     _attr_mode = NumberMode.AUTO
-    _attr_icon = "mdi:ev-station"
 
     def __init__(self, manager: TeslaBLEManager) -> None:
         super().__init__(manager, "number_charge_limit", "charge_state")
@@ -71,7 +70,6 @@ class TeslaChargingAmpsNumber(TeslaBLEEntity, NumberEntity):
     _attr_native_unit_of_measurement = UnitOfElectricCurrent.AMPERE
     _attr_device_class = NumberDeviceClass.CURRENT
     _attr_mode = NumberMode.AUTO
-    _attr_icon = "mdi:ev-station"
 
     def __init__(self, manager: TeslaBLEManager) -> None:
         super().__init__(manager, "number_charge_amps", "charge_state")
