@@ -27,6 +27,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry, async_
 
 from custom_components.tesla_ble import ble as ble_module
 from custom_components.tesla_ble.const import CONF_ADDRESS, CONF_PAIR_ON_SETUP, CONF_VIN, DOMAIN
+from custom_components.tesla_ble.sensor import _software_update_attributes
 
 VIN = "5YJ30123456789ABC"
 ADDRESS = "AA:BB:CC:DD:EE:FF"
@@ -650,6 +651,23 @@ async def test_software_update_sensor(hass, sim, monkeypatch, hass_storage, enab
     await manager.async_force_update()
     await settle_until(hass, lambda: bool(manager.software_update_state))
     assert state_of(hass, "sensor", f"{VIN}_sensor_software_update") == "Available"
+
+    # No update pending (tag 1) reads as up to date, like the Fleet integration.
+    sim.set_software_update_state(1)
+    await manager.async_force_update()
+    await settle_until(hass, lambda: manager.software_update_state.get("status") == 1)
+    assert state_of(hass, "sensor", f"{VIN}_sensor_software_update") == "Up to date"
+
+
+def test_software_update_release_url():
+    """A known update version links to its release announcement."""
+    manager = SimpleNamespace(software_update_state={"status": 4, "version": "2026.40.1 abc123"})
+    attrs = _software_update_attributes(manager)
+    assert attrs["version"] == "2026.40.1 abc123"
+    assert attrs["release_url"] == (
+        "https://www.notateslaapp.com/software-updates/version/2026.40.1/release-notes"
+    )
+    assert _software_update_attributes(SimpleNamespace(software_update_state={})) is None
 
 
 async def test_polling_switch_pauses_and_persists(hass, sim, monkeypatch, hass_storage, enable_bluetooth):

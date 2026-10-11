@@ -50,7 +50,7 @@ SHIFT_STATE_OPTIONS = ["P", "R", "N", "D", "SNA", "Invalid", "Unknown"]
 IEC61851_OPTIONS = ["A", "B", "C", "E", "F", "Unknown"]
 CHARGE_LIMIT_REASON_OPTIONS = ["None", "EVSE", "BattTempLow", "HighSoc", "Cabin", "Unknown"]
 SOFTWARE_UPDATE_OPTIONS = [
-    "Unknown",
+    "Up to date",
     "Installing",
     "Scheduled",
     "Available",
@@ -147,6 +147,11 @@ def _software_update_attributes(manager: TeslaBLEManager) -> dict[str, Any] | No
         for key in ("version", "download_perc", "install_perc", "expected_duration_sec")
         if state.get(key) is not None
     }
+    version = (state.get("version") or "").split(" ")[0]
+    if version:
+        attributes["release_url"] = (
+            f"https://www.notateslaapp.com/software-updates/version/{version}/release-notes"
+        )
     return attributes or None
 
 
@@ -389,10 +394,7 @@ class TeslaSensor(TeslaBLEEntity, SensorEntity):
 
     @property
     def native_value(self) -> Any:
-        value = self.entity_description.value_fn(self.manager)
-        if value is None and self.entity_description.device_class == SensorDeviceClass.ENUM:
-            return "Unknown"
-        return value
+        return self.entity_description.value_fn(self.manager)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
