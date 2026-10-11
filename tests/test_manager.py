@@ -670,6 +670,32 @@ def test_software_update_release_url():
     assert _software_update_attributes(SimpleNamespace(software_update_state={})) is None
 
 
+async def test_software_update_buttons(hass, sim, monkeypatch, hass_storage, enable_bluetooth):
+    """Install/cancel buttons gate on the update status and command the car."""
+    sim.set_software_update_state(4)  # Available
+    entry, _client = await setup_entry(hass, sim, monkeypatch, hass_storage)
+    manager = entry.runtime_data
+    await manager.async_force_update()
+    await settle_until(hass, lambda: manager.software_update_state.get("status") == 4)
+
+    registry = er.async_get(hass)
+    install_id = registry.async_get_entity_id("button", DOMAIN, f"{VIN}_button_software_update_install")
+    cancel_id = registry.async_get_entity_id("button", DOMAIN, f"{VIN}_button_software_update_cancel")
+    assert install_id and cancel_id
+    assert hass.states.get(install_id).state != "unavailable", "install is offered while the update is ready"
+    assert hass.states.get(cancel_id).state == "unavailable", "nothing to cancel yet"
+
+    await hass.services.async_call("button", "press", {"entity_id": install_id}, blocking=True)
+    await settle_until(hass, lambda: manager.software_update_state.get("status") == 3)
+    assert state_of(hass, "sensor", f"{VIN}_sensor_software_update") == "Scheduled"
+    assert hass.states.get(install_id).state == "unavailable"
+    assert hass.states.get(cancel_id).state != "unavailable"
+
+    await hass.services.async_call("button", "press", {"entity_id": cancel_id}, blocking=True)
+    await settle_until(hass, lambda: manager.software_update_state.get("status") == 4)
+    assert state_of(hass, "sensor", f"{VIN}_sensor_software_update") == "Available"
+
+
 async def test_polling_switch_pauses_and_persists(hass, sim, monkeypatch, hass_storage, enable_bluetooth):
     """The polling switch pauses polling, keeps values and survives a reload."""
     entry, _client = await setup_entry(hass, sim, monkeypatch, hass_storage)

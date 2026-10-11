@@ -714,3 +714,12 @@ class TeslaBLEManager:
 
     async def async_honk_horn(self) -> None:
         await self.async_command("Honk Horn", lambda cb: self._vehicle.honk_horn(cb))
+
+    async def async_install_software_update(self) -> None:
+        """Start installing a downloaded update immediately."""
+        await self.async_command(
+            "Schedule Software Update", lambda cb: self._vehicle.schedule_software_update(0, cb)
+        )
+
+    async def async_cancel_software_update(self) -> None:
+        await self.async_command("Cancel Software Update", lambda cb: self._vehicle.cancel_software_update(cb))

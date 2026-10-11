@@ -144,6 +144,12 @@
       "regenerate_key": {
         "name": "Regenerate key"
       },
+      "software_update_cancel": {
+        "name": "Cancel software update"
+      },
+      "software_update_install": {
+        "name": "Install software update"
+      },
       "unlatch_driver_door": {
         "name": "Unlatch driver door"
       }

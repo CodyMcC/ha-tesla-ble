@@ -27,6 +27,8 @@ async def async_setup_entry(
             TeslaUnlatchDriverDoorButton(manager),
             TeslaFlashLightsButton(manager),
             TeslaHonkHornButton(manager),
+            TeslaSoftwareUpdateInstallButton(manager),
+            TeslaSoftwareUpdateCancelButton(manager),
         ]
     )
 
@@ -113,3 +115,48 @@ class TeslaUnlatchDriverDoorButton(TeslaBLEEntity, ButtonEntity):
 
     async def async_press(self) -> None:
         await self.manager.async_unlatch_driver_door()
+
+
+# CarServer software update status tags.
+UPDATE_STATUS_SCHEDULED = 3
+UPDATE_STATUS_AVAILABLE = 4
+UPDATE_STATUS_DOWNLOADING_WIFI_WAIT = 5
+UPDATE_STATUS_DOWNLOADING = 6
+
+
+class TeslaSoftwareUpdateInstallButton(TeslaBLEEntity, ButtonEntity):
+    """Install a downloaded update; only meaningful once it is ready."""
+
+    _attr_translation_key = "software_update_install"
+    _attr_icon = "mdi:cellphone-arrow-down"
+
+    def __init__(self, manager: TeslaBLEManager) -> None:
+        super().__init__(manager, "button_software_update_install", "software_update_state")
+
+    @property
+    def available(self) -> bool:
+        return super().available and self.manager.software_update_state.get("status") == UPDATE_STATUS_AVAILABLE
+
+    async def async_press(self) -> None:
+        await self.manager.async_install_software_update()
+
+
+class TeslaSoftwareUpdateCancelButton(TeslaBLEEntity, ButtonEntity):
+    """Cancel a scheduled or in-progress download."""
+
+    _attr_translation_key = "software_update_cancel"
+    _attr_icon = "mdi:close-circle-outline"
+
+    def __init__(self, manager: TeslaBLEManager) -> None:
+        super().__init__(manager, "button_software_update_cancel", "software_update_state")
+
+    @property
+    def available(self) -> bool:
+        return super().available and self.manager.software_update_state.get("status") in (
+            UPDATE_STATUS_SCHEDULED,
+            UPDATE_STATUS_DOWNLOADING_WIFI_WAIT,
+            UPDATE_STATUS_DOWNLOADING,
+        )
+
+    async def async_press(self) -> None:
+        await self.manager.async_cancel_software_update()
