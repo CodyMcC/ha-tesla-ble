@@ -591,6 +591,31 @@ async def test_presence_tracker_follows_reachability(hass, sim, monkeypatch, has
     assert state_of(hass, "device_tracker", f"{VIN}_tracker") == "not_home"
 
 
+async def test_number_limits_follow_vehicle(hass, sim, monkeypatch, hass_storage, enable_bluetooth):
+    """Both number ranges come from the vehicle, not from a config option."""
+    entry, _client = await setup_entry(hass, sim, monkeypatch, hass_storage)
+    manager = entry.runtime_data
+    await settle_until(hass, lambda: bool(manager.charge_state))
+
+    manager.charge_state = {
+        **manager.charge_state,
+        "charge_limit_soc": 80,
+        "charge_limit_soc_min": 50,
+        "charge_limit_soc_max": 90,
+        "charge_current_request_max": 16,
+        "charging_amps": 12,
+    }
+    manager._notify()
+
+    limit = hass.states.get("number.tesla_789abc_charge_limit")
+    amps = hass.states.get("number.tesla_789abc_charging_amps")
+    assert limit.state == "80"
+    assert limit.attributes["min"] == 50
+    assert limit.attributes["max"] == 90
+    assert amps.state == "12"
+    assert amps.attributes["max"] == 16
+
+
 async def test_periodic_polls_do_not_fill_queue_behind_existing_work(hass, sim, monkeypatch, hass_storage):
     from custom_components.tesla_ble import manager as manager_module
 

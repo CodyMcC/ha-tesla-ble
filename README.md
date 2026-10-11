@@ -92,7 +92,9 @@ python scripts/carcheck.py --vin 5YJ... --pair     # then tap a key card
 - **Vehicle status poll interval** (default 60 s)
 - **Awake / charging poll intervals** and **idle back-off timeout**
 - **Disconnect after idle** (default 120 s)
-- **Maximum charging amps** (caps the charging amps slider)
+
+The charging-amps slider range follows the vehicle's own limit
+(`charge_current_request_max`); no configuration is needed.
 
 Use the integration's **Reconfigure** menu to change a Bluetooth address while
 keeping the VIN and credentials. Deleting the entry removes its local keys and

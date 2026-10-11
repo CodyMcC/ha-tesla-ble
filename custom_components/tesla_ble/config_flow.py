@@ -18,7 +18,6 @@ import tesla_ble
 
 from .const import (
     CONF_ADDRESS,
-    CONF_CHARGING_AMPS_MAX,
     CONF_DISCONNECT_DELAY,
     CONF_INFOTAINMENT_POLL_INTERVAL_ACTIVE,
     CONF_INFOTAINMENT_POLL_INTERVAL_AWAKE,
@@ -26,19 +25,16 @@ from .const import (
     CONF_PAIR_ON_SETUP,
     CONF_VCSEC_POLL_INTERVAL,
     CONF_VIN,
-    DEFAULT_CHARGING_AMPS_MAX,
     DEFAULT_DISCONNECT_DELAY,
     DEFAULT_INFOTAINMENT_POLL_INTERVAL_ACTIVE,
     DEFAULT_INFOTAINMENT_POLL_INTERVAL_AWAKE,
     DEFAULT_INFOTAINMENT_SLEEP_TIMEOUT,
     DEFAULT_VCSEC_POLL_INTERVAL,
     DOMAIN,
-    MAX_CHARGING_AMPS_MAX,
     MAX_DISCONNECT_DELAY,
     MAX_INFOTAINMENT_POLL_INTERVAL,
     MAX_SLEEP_TIMEOUT,
     MAX_VCSEC_POLL_INTERVAL,
-    MIN_CHARGING_AMPS_MAX,
     MIN_DISCONNECT_DELAY,
     MIN_INFOTAINMENT_POLL_INTERVAL,
     MIN_SLEEP_TIMEOUT,
@@ -286,10 +282,6 @@ class TeslaBLEOptionsFlow(OptionsFlow):
                     CONF_DISCONNECT_DELAY,
                     default=options.get(CONF_DISCONNECT_DELAY, DEFAULT_DISCONNECT_DELAY),
                 ): vol.All(int, vol.Range(min=MIN_DISCONNECT_DELAY, max=MAX_DISCONNECT_DELAY)),
-                vol.Optional(
-                    CONF_CHARGING_AMPS_MAX,
-                    default=options.get(CONF_CHARGING_AMPS_MAX, DEFAULT_CHARGING_AMPS_MAX),
-                ): vol.All(int, vol.Range(min=MIN_CHARGING_AMPS_MAX, max=MAX_CHARGING_AMPS_MAX)),
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)

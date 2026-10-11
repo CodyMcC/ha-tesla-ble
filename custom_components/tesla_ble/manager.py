@@ -21,7 +21,6 @@ import tesla_ble
 from .ble import HaBleAdapter, TeslaBleTransport
 from .const import (
     CONF_ADDRESS,
-    CONF_CHARGING_AMPS_MAX,
     CONF_DISCONNECT_DELAY,
     CONF_INFOTAINMENT_POLL_INTERVAL_ACTIVE,
     CONF_INFOTAINMENT_POLL_INTERVAL_AWAKE,
@@ -30,7 +29,6 @@ from .const import (
     CONF_VCSEC_POLL_INTERVAL,
     CONF_VIN,
     CONNECT_RETRY_BACKOFF,
-    DEFAULT_CHARGING_AMPS_MAX,
     DEFAULT_DISCONNECT_DELAY,
     DEFAULT_INFOTAINMENT_POLL_INTERVAL_ACTIVE,
     DEFAULT_INFOTAINMENT_POLL_INTERVAL_AWAKE,
@@ -71,7 +69,6 @@ class TeslaBLEManager:
         options = entry.options
         self.vcsec_poll_interval: int = options.get(CONF_VCSEC_POLL_INTERVAL, DEFAULT_VCSEC_POLL_INTERVAL)
         self.disconnect_delay: int = options.get(CONF_DISCONNECT_DELAY, DEFAULT_DISCONNECT_DELAY)
-        self.charging_amps_max: int = options.get(CONF_CHARGING_AMPS_MAX, DEFAULT_CHARGING_AMPS_MAX)
 
         # Observed state (plain dicts produced by the bindings)
         self.vehicle_status: dict[str, Any] = {}

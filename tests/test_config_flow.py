@@ -197,13 +197,12 @@ async def test_options_apply_after_reload_and_reject_invalid_intervals(hass, sim
     with pytest.raises(vol.Invalid):
         await hass.config_entries.options.async_configure(result["flow_id"], {"vcsec_poll_interval": 0})
     result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"vcsec_poll_interval": 120, "charging_amps_max": 16}
+        result["flow_id"], {"vcsec_poll_interval": 120}
     )
     assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
     await hass.async_block_till_done(wait_background_tasks=True)
     assert old._stopped and entry.runtime_data is not old
     assert entry.runtime_data.vcsec_poll_interval == 120
-    assert entry.runtime_data.charging_amps_max == 16
 
 
 async def test_reconfigure_preserves_vin_and_credentials(hass, sim, monkeypatch, hass_storage):

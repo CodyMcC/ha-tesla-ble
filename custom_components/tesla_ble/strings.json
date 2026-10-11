@@ -58,8 +58,7 @@
           "infotainment_poll_interval_awake": "Awake poll interval (seconds)",
           "infotainment_poll_interval_active": "Charging/sentry poll interval (seconds)",
           "infotainment_sleep_timeout": "Idle time before backing off (seconds)",
-          "disconnect_delay": "Disconnect after idle (seconds)",
-          "charging_amps_max": "Maximum charging amps"
+          "disconnect_delay": "Disconnect after idle (seconds)"
         }
       }
     }
