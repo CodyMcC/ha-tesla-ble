@@ -51,6 +51,10 @@ CHARGING_ACTIVE_STATES = ("Charging", "Starting")
 # habluetooth must not look like the vehicle is still nearby.
 RSSI_MAX_AGE_SECONDS = 300
 
+# Software update state changes rarely, so it is polled on every Nth
+# infotainment cycle (and on manual refresh) to limit BLE traffic.
+SOFTWARE_UPDATE_POLL_EVERY = 5
+
 
 def monotonic_ms() -> int:
     return int(time.monotonic() * 1000) & 0xFFFFFFFF
@@ -77,9 +81,11 @@ class TeslaBLEManager:
         self.drive_state: dict[str, Any] = {}
         self.closures_state: dict[str, Any] = {}
         self.tire_pressure_state: dict[str, Any] = {}
+        self.software_update_state: dict[str, Any] = {}
         self.last_command: str | None = None
         self.connected = False
         self.rssi: int | None = None
+        self.polling = True
 
         self._listeners: list[Callable[[], None]] = []
         self._last_activity = 0.0
@@ -94,6 +100,7 @@ class TeslaBLEManager:
         self._tick_cancel: Callable[[], None] | None = None
         self._stop_cancel: Callable[[], None] | None = None
         self._next_vcsec_poll = 0.0
+        self._software_update_cycles = 0
         self._pairing_notification_id = f"{DOMAIN}_pairing_{entry.entry_id}"
         self._pairing_pending = False
         self._pairing_tasks: set[asyncio.Task] = set()
@@ -125,6 +132,7 @@ class TeslaBLEManager:
     async def async_setup(self) -> None:
         await self._store.async_load()
         await self._store.async_flush()
+        self.polling = self._store.load("polling") != b"0"
         self._create_vehicle()
         self.paired = self._vehicle.has_private_key and self._store.load("paired_key") == self._key_id()
         self._transport.set_notify_callback(self._on_notify)
@@ -145,6 +153,7 @@ class TeslaBLEManager:
         self._vehicle.set_drive_state_callback(self._on_drive_state)
         self._vehicle.set_tire_pressure_state_callback(self._on_tire_pressure_state)
         self._vehicle.set_closures_state_callback(self._on_closures_state)
+        self._vehicle.set_software_update_state_callback(self._on_software_update_state)
 
     def _key_id(self) -> bytes | None:
         key = self._store.load("private_key")
@@ -202,7 +211,15 @@ class TeslaBLEManager:
 
     def _clear_vehicle_callbacks(self) -> None:
         if self._vehicle is not None:
-            for state in ("vehicle_status", "charge_state", "climate_state", "drive_state", "tire_pressure_state", "closures_state"):
+            for state in (
+                "vehicle_status",
+                "charge_state",
+                "climate_state",
+                "drive_state",
+                "tire_pressure_state",
+                "closures_state",
+                "software_update_state",
+            ):
                 getattr(self._vehicle, f"set_{state}_callback")(None)
 
     def _async_update_pairing_issue(self) -> None:
@@ -300,6 +317,9 @@ class TeslaBLEManager:
         telemetry expires.
         """
         status_fresh = self.state_fresh("vehicle_status")
+        if not self.polling:
+            # Polling was paused by the user: keep the last known values.
+            return True
         if state == "vehicle_status":
             return status_fresh
         if not status_fresh:
@@ -353,6 +373,10 @@ class TeslaBLEManager:
     def _on_closures_state(self, state: dict[str, Any]) -> None:
         self.closures_state = state
         self._received_state("closures_state")
+
+    def _on_software_update_state(self, state: dict[str, Any]) -> None:
+        self.software_update_state = state
+        self._received_state("software_update_state")
 
     def _on_notify(self, data: bytes) -> None:
         if self._stopped or self._vehicle is None or not self.connected:
@@ -463,7 +487,7 @@ class TeslaBLEManager:
         return self._poll_policy.update(now_ms, is_asleep, is_charging, is_sentry)
 
     async def _async_handle_polls(self) -> None:
-        if self._vehicle.pending_command_count:
+        if not self.polling or self._vehicle.pending_command_count:
             return
         now = time.monotonic()
         now_ms = monotonic_ms()
@@ -487,6 +511,9 @@ class TeslaBLEManager:
         if infotainment_due:
             self._vehicle.infotainment_poll(decision["wake_policy"])
             self._poll_policy.on_poll(now_ms)
+            self._software_update_cycles += 1
+            if self._software_update_cycles % SOFTWARE_UPDATE_POLL_EVERY == 0:
+                self._vehicle.software_update_poll(decision["wake_policy"])
         await self._transport.async_flush()
 
     async def _async_handle_idle_disconnect(self) -> None:
@@ -564,11 +591,22 @@ class TeslaBLEManager:
             self._last_activity = time.monotonic()
             self._vehicle.vcsec_poll()
             self._vehicle.infotainment_poll(tesla_ble.WakePolicy.NO_WAKE_SKIP)
+            self._vehicle.software_update_poll(tesla_ble.WakePolicy.NO_WAKE_SKIP)
             self._poll_policy.on_poll(monotonic_ms())
             await self._transport.async_flush()
 
     async def async_wake(self) -> None:
         await self.async_command("Wake", lambda cb: self._vehicle.wake(cb))
+
+    async def async_set_polling(self, enabled: bool) -> None:
+        """Pause or resume polling the vehicle."""
+        if self.polling == enabled:
+            return
+        self.polling = enabled
+        self._store.save("polling", b"1" if enabled else b"0")
+        if enabled:
+            self._next_vcsec_poll = 0.0
+        self._notify()
 
     async def async_lock_doors(self, lock: bool) -> None:
         await self.async_command(

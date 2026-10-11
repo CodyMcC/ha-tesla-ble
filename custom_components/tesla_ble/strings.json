@@ -22,7 +22,9 @@
       "reconfigure": {
         "title": "Change Bluetooth address",
         "description": "Change the Bluetooth address without losing the vehicle's paired key.",
-        "data": {"address": "Bluetooth address"}
+        "data": {
+          "address": "Bluetooth address"
+        }
       },
       "vin": {
         "title": "Vehicle identification number",
@@ -69,13 +71,13 @@
         "name": "Asleep"
       },
       "charger_connected": {
-        "name": "Charger connected"
+        "name": "Charger"
       },
       "charging": {
         "name": "Charging"
       },
       "connection": {
-        "name": "Bluetooth connection"
+        "name": "Online"
       },
       "door_driver_front": {
         "name": "Door driver front"
@@ -109,6 +111,18 @@
       },
       "sunroof": {
         "name": "Sunroof"
+      },
+      "doors": {
+        "name": "Doors"
+      },
+      "windows": {
+        "name": "Windows"
+      },
+      "scheduled_charging": {
+        "name": "Scheduled charging"
+      },
+      "scheduled_departure": {
+        "name": "Scheduled departure"
       }
     },
     "button": {
@@ -116,16 +130,16 @@
         "name": "Flash lights"
       },
       "force_update": {
-        "name": "Refresh data"
+        "name": "Force data update"
       },
       "honk_horn": {
-        "name": "Honk horn"
+        "name": "Horn"
       },
       "pair": {
         "name": "Pair"
       },
       "wake": {
-        "name": "Wake"
+        "name": "Wake up"
       },
       "regenerate_key": {
         "name": "Regenerate key"
@@ -136,7 +150,7 @@
     },
     "cover": {
       "charge_port": {
-        "name": "Charge port door"
+        "name": "Charger door"
       },
       "frunk": {
         "name": "Frunk"
@@ -171,10 +185,10 @@
     },
     "sensor": {
       "battery_level": {
-        "name": "Battery level"
+        "name": "Battery"
       },
       "battery_range": {
-        "name": "Battery range"
+        "name": "Range"
       },
       "charge_energy_added": {
         "name": "Energy added"
@@ -195,7 +209,7 @@
         "name": "Charging state"
       },
       "inside_temp": {
-        "name": "Inside temperature"
+        "name": "Temperature (inside)"
       },
       "last_command": {
         "name": "Last command"
@@ -204,13 +218,13 @@
         "name": "BLE signal"
       },
       "minutes_to_full_charge": {
-        "name": "Time to full charge"
+        "name": "Time charge complete"
       },
       "odometer": {
         "name": "Odometer"
       },
       "outside_temp": {
-        "name": "Outside temperature"
+        "name": "Temperature (outside)"
       },
       "shift_state": {
         "name": "Shift state"
@@ -239,9 +253,6 @@
       "charger_phases": {
         "name": "Charger phases"
       },
-      "charger_power_estimated": {
-        "name": "Charger power estimated"
-      },
       "charging_rate": {
         "name": "Charging rate"
       },
@@ -250,17 +261,23 @@
       },
       "charge_limit_reason": {
         "name": "Charge limit reason"
+      },
+      "software_update": {
+        "name": "Software update"
       }
     },
     "switch": {
       "charging": {
-        "name": "Charging"
+        "name": "Charger"
       },
       "steering_wheel_heat": {
-        "name": "Steering wheel heater"
+        "name": "Heated steering"
       },
       "sentry_mode": {
         "name": "Sentry mode"
+      },
+      "polling": {
+        "name": "Polling"
       }
     },
     "climate": {

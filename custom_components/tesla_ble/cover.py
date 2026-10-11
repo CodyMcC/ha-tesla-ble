@@ -77,6 +77,7 @@ class TeslaFrunkCover(TeslaBLEEntity, CoverEntity):
 
 class TeslaChargePortCover(TeslaBLEEntity, CoverEntity):
     _attr_translation_key = "charge_port"
+    _attr_device_class = CoverDeviceClass.DOOR
     _attr_supported_features = CoverEntityFeature.OPEN | CoverEntityFeature.CLOSE
 
     def __init__(self, manager: TeslaBLEManager) -> None:

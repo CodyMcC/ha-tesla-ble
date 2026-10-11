@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from homeassistant.components.switch import SwitchEntity
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -24,6 +25,7 @@ async def async_setup_entry(
             TeslaChargingSwitch(manager),
             TeslaSteeringWheelHeatSwitch(manager),
             TeslaSentryModeSwitch(manager),
+            TeslaPollingSwitch(manager),
         ]
     )
 
@@ -84,3 +86,24 @@ class TeslaSentryModeSwitch(TeslaBLEEntity, SwitchEntity):
 
     async def async_turn_off(self, **kwargs) -> None:
         await self.manager.async_set_sentry_mode(False)
+
+
+class TeslaPollingSwitch(TeslaBLEEntity, SwitchEntity):
+    """Pause polling (e.g. to let the vehicle sleep); entities keep last values."""
+
+    _attr_translation_key = "polling"
+    _attr_icon = "mdi:sync"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, manager: TeslaBLEManager) -> None:
+        super().__init__(manager, "switch_polling", None)
+
+    @property
+    def is_on(self) -> bool:
+        return self.manager.polling
+
+    async def async_turn_on(self, **kwargs) -> None:
+        await self.manager.async_set_polling(True)
+
+    async def async_turn_off(self, **kwargs) -> None:
+        await self.manager.async_set_polling(False)

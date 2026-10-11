@@ -160,7 +160,7 @@ async def test_poll_updates_entities(hass: HomeAssistant, sim, monkeypatch, hass
     await settle_until(hass, lambda: manager.charge_state and manager.vehicle_status and manager.drive_state)
 
     # User-visible entity ids stay stable (translation keys resolve to names).
-    assert hass.states.get("sensor.tesla_789abc_battery_level") is not None
+    assert hass.states.get("sensor.tesla_789abc_battery") is not None
     assert state_of(hass, "sensor", f"{VIN}_sensor_battery_level") == "55"
     assert state_of(hass, "sensor", f"{VIN}_sensor_charger_power") == "unknown"
     assert distance_in_miles(hass, "sensor", f"{VIN}_sensor_odometer") == pytest.approx(1234.5, abs=0.1)
@@ -420,7 +420,7 @@ async def test_parity_entities(hass: HomeAssistant, sim, monkeypatch, hass_stora
 
     assert state_of(hass, "sensor", f"{VIN}_sensor_evse_max_current") == "16"
     assert state_of(hass, "sensor", f"{VIN}_sensor_charger_phases") == "3"
-    assert state_of(hass, "sensor", f"{VIN}_sensor_charger_power_estimated") == "6.9"
+    assert state_of(hass, "sensor", f"{VIN}_sensor_charger_power") == "6.9"
     assert state_of(hass, "binary_sensor", f"{VIN}_binary_parking_brake") == "on"
     assert state_of(hass, "switch", f"{VIN}_switch_sentry_mode") == "on"
     assert state_of(hass, "lock", f"{VIN}_lock_charge_port_latch") == "locked"
@@ -614,6 +614,68 @@ async def test_number_limits_follow_vehicle(hass, sim, monkeypatch, hass_storage
     assert limit.attributes["max"] == 90
     assert amps.state == "12"
     assert amps.attributes["max"] == 16
+
+
+async def test_fleet_style_entities_and_attributes(hass, sim, monkeypatch, hass_storage, enable_bluetooth):
+    """Aggregate sensors and grouped attributes mirror the fleet integration."""
+    sim.set_charger_voltage(230)
+    sim.set_charger_actual_current(10)
+    sim.set_charger_phases(3)
+    sim.set_scheduled_charging_mode(1)
+    sim.set_door_open("driver_front", True)
+
+    entry, _client = await setup_entry(hass, sim, monkeypatch, hass_storage)
+    manager = entry.runtime_data
+    manager._next_vcsec_poll = 0
+    await settle_until(hass, lambda: bool(manager.charge_state) and bool(manager.closures_state))
+
+    doors = hass.states.get("binary_sensor.tesla_789abc_doors")
+    assert doors.state == "on"
+    assert doors.attributes["Driver Front"] == "Open"
+    assert doors.attributes["Driver Rear"] == "Closed"
+
+    assert state_of(hass, "binary_sensor", f"{VIN}_binary_scheduled_charging") == "on"
+
+    power = hass.states.get("sensor.tesla_789abc_charger_power")
+    assert power.attributes["charger_volts"] == 230
+    assert power.attributes["charger_phases"] == 3
+    assert power.attributes["charger_amps_actual"] == 10
+
+
+async def test_software_update_sensor(hass, sim, monkeypatch, hass_storage, enable_bluetooth):
+    """Software update state arrives via force update and maps to text."""
+    sim.set_software_update_state(4)  # Available
+    entry, _client = await setup_entry(hass, sim, monkeypatch, hass_storage)
+    manager = entry.runtime_data
+    await manager.async_force_update()
+    await settle_until(hass, lambda: bool(manager.software_update_state))
+    assert state_of(hass, "sensor", f"{VIN}_sensor_software_update") == "Available"
+
+
+async def test_polling_switch_pauses_and_persists(hass, sim, monkeypatch, hass_storage, enable_bluetooth):
+    """The polling switch pauses polling, keeps values and survives a reload."""
+    entry, _client = await setup_entry(hass, sim, monkeypatch, hass_storage)
+    manager = entry.runtime_data
+    await settle_until(hass, lambda: bool(manager.charge_state) and manager._vehicle.pending_command_count == 0)
+
+    switch_id = er.async_get(hass).async_get_entity_id("switch", DOMAIN, f"{VIN}_switch_polling")
+    assert switch_id
+    await hass.services.async_call("switch", "turn_off", {"entity_id": switch_id}, blocking=True)
+    assert manager.polling is False
+    assert manager._store.load("polling") == b"0"
+
+    await settle(hass, 3)
+    assert manager._vehicle.pending_command_count == 0, "paused polling must not enqueue commands"
+    assert state_of(hass, "sensor", f"{VIN}_sensor_battery_level") == "55", "paused polling keeps last values"
+
+    await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done(wait_background_tasks=True)
+    assert entry.runtime_data.polling is False
+
+    switch_id = er.async_get(hass).async_get_entity_id("switch", DOMAIN, f"{VIN}_switch_polling")
+    await hass.services.async_call("switch", "turn_on", {"entity_id": switch_id}, blocking=True)
+    assert entry.runtime_data.polling is True
+    assert entry.runtime_data._store.load("polling") == b"1"
 
 
 async def test_periodic_polls_do_not_fill_queue_behind_existing_work(hass, sim, monkeypatch, hass_storage):

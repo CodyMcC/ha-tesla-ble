@@ -78,14 +78,20 @@ python scripts/carcheck.py --vin 5YJ... --pair     # then tap a key card
 
 | Platform | Examples |
 | --- | --- |
-| `sensor` | battery level, range, charger power/voltage/current, charge limit, odometer, temperatures, tire pressures, charging state, shift state, last command, BLE signal |
-| `binary_sensor` | asleep, charging, charger connected, user present, doors, windows, Bluetooth connection |
+| `sensor` | battery (with `raw_soc`), range (with estimated ranges), energy added (with `added_range`), charger power (computed from volts/amps/phases, with `reported_power` and per-phase attributes), charging rate, time charge complete (timestamp), software update, odometer, temperatures, tire pressures, charging state, shift state, last command, BLE signal |
+| `binary_sensor` | asleep, charging, charger, online, doors, windows (aggregates with per-closure attributes), scheduled charging/departure, user present, parking brake |
 | `device_tracker` | home while the car is within Bluetooth range, not_home once it leaves |
-| `lock` | doors |
-| `switch` | charging, steering wheel heater |
-| `number` | charge limit, charging amps |
-| `cover` | trunk, frunk, charge port door, windows |
-| `button` | wake, pair, refresh data, flash lights, honk horn |
+| `lock` | doors, charge port latch |
+| `switch` | charger, heated steering, sentry mode, polling (pause polling to let the car sleep) |
+| `number` | charge limit, charging amps (ranges come from the vehicle) |
+| `cover` | charger door, trunk, frunk, windows |
+| `button` | wake up, pair, force data update, flash lights, horn |
+
+Entity names follow the popular Fleet API integration
+([`tesla_custom`](https://github.com/alandtse/tesla)) wherever an equivalent
+exists, so entity IDs are familiar and automations can be ported over. BLE-only
+extras (individual door/window sensors, tire pressures, charge-limit reason,
+cable latch, BLE signal, pairing buttons) remain as additional entities.
 
 ## Options
 

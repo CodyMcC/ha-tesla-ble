@@ -46,9 +46,66 @@ def _window(manager: TeslaBLEManager, key: str) -> bool | None:
     return None if value is None else bool(value)
 
 
+DOOR_KEYS = {
+    "Driver Front": "front_driver_door",
+    "Driver Rear": "rear_driver_door",
+    "Passenger Front": "front_passenger_door",
+    "Passenger Rear": "rear_passenger_door",
+}
+
+WINDOW_KEYS = {
+    "Driver Front": "window_open_driver_front",
+    "Driver Rear": "window_open_driver_rear",
+    "Passenger Front": "window_open_passenger_front",
+    "Passenger Rear": "window_open_passenger_rear",
+}
+
+
+def _any(values: list[bool | None]) -> bool | None:
+    return None if all(value is None for value in values) else any(values)
+
+
+def _any_closure(manager: TeslaBLEManager) -> bool | None:
+    return _any([_closure(manager, key) for key in DOOR_KEYS.values()])
+
+
+def _any_window(manager: TeslaBLEManager) -> bool | None:
+    return _any([_window(manager, key) for key in WINDOW_KEYS.values()])
+
+
+def _closure_attributes(manager: TeslaBLEManager) -> dict[str, str] | None:
+    values = {label: _closure(manager, key) for label, key in DOOR_KEYS.items()}
+    if all(value is None for value in values.values()):
+        return None
+    return {label: "Open" if value else "Closed" for label, value in values.items()}
+
+
+def _window_attributes(manager: TeslaBLEManager) -> dict[str, str] | None:
+    values = {label: _window(manager, key) for label, key in WINDOW_KEYS.items()}
+    if all(value is None for value in values.values()):
+        return None
+    return {label: "Open" if value else "Closed" for label, value in values.items()}
+
+
+def _scheduled_charging(manager: TeslaBLEManager) -> bool | None:
+    pending = manager.charge_state.get("scheduled_charging_pending")
+    mode = manager.charge_state.get("scheduled_charging_mode")
+    if pending is None and mode is None:
+        return None
+    return bool(pending) or bool(mode)
+
+
+def _scheduled_departure(manager: TeslaBLEManager) -> bool | None:
+    minutes = manager.charge_state.get("scheduled_departure_time_minutes")
+    if minutes is None:
+        return None
+    return minutes > 0
+
+
 @dataclass(frozen=True, kw_only=True)
 class TeslaBinarySensorDescription(BinarySensorEntityDescription):
     value_fn: Callable[[TeslaBLEManager], Any]
+    attrs_fn: Callable[[TeslaBLEManager], dict[str, Any] | None] | None = None
     state: str | None = "vehicle_status"
 
 
@@ -156,6 +213,30 @@ BINARY_SENSOR_DESCRIPTIONS: tuple[TeslaBinarySensorDescription, ...] = (
         entity_registry_enabled_default=False,
     ),
     TeslaBinarySensorDescription(
+        key="doors",
+        state="vehicle_status",
+        value_fn=_any_closure,
+        attrs_fn=_closure_attributes,
+        device_class=BinarySensorDeviceClass.DOOR,
+    ),
+    TeslaBinarySensorDescription(
+        key="windows",
+        state="closures_state",
+        value_fn=_any_window,
+        attrs_fn=_window_attributes,
+        device_class=BinarySensorDeviceClass.WINDOW,
+    ),
+    TeslaBinarySensorDescription(
+        key="scheduled_charging",
+        state="charge_state",
+        value_fn=_scheduled_charging,
+    ),
+    TeslaBinarySensorDescription(
+        key="scheduled_departure",
+        state="charge_state",
+        value_fn=_scheduled_departure,
+    ),
+    TeslaBinarySensorDescription(
         key="connection",
         state=None,
         value_fn=lambda m: m.connected,
@@ -187,3 +268,9 @@ class TeslaBinarySensor(TeslaBLEEntity, BinarySensorEntity):
     @property
     def is_on(self) -> bool | None:
         return self.entity_description.value_fn(self.manager)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        if self.entity_description.attrs_fn is None:
+            return None
+        return self.entity_description.attrs_fn(self.manager)

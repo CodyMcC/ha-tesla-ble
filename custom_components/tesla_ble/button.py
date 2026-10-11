@@ -34,6 +34,7 @@ async def async_setup_entry(
 class TeslaWakeButton(TeslaBLEEntity, ButtonEntity):
     _attr_translation_key = "wake"
     _attr_icon = "mdi:power"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, manager: TeslaBLEManager) -> None:
         super().__init__(manager, "button_wake")
@@ -105,6 +106,7 @@ class TeslaRegenerateKeyButton(TeslaBLEEntity, ButtonEntity):
 class TeslaUnlatchDriverDoorButton(TeslaBLEEntity, ButtonEntity):
     _attr_translation_key = "unlatch_driver_door"
     _attr_icon = "mdi:car-door-lock-open"
+    _attr_entity_registry_enabled_default = False
 
     def __init__(self, manager: TeslaBLEManager) -> None:
         super().__init__(manager, "button_unlatch_driver_door")
