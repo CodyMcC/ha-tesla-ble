@@ -281,12 +281,24 @@ class TeslaBLEManager:
     def available(self) -> bool:
         return not self._stopped and (self.connected or any(self.state_available(state) for state in self._state_received_at))
 
-    def state_available(self, state: str) -> bool:
+    def state_fresh(self, state: str) -> bool:
+        """Whether telemetry for this state was received recently enough."""
         received = self._state_received_at.get(state)
         if received is None or self._stopped:
             return False
         interval = self.vcsec_poll_interval if state == "vehicle_status" else self._poll_policy.sleep_timeout_ms / 1000
         return time.monotonic() - received <= max(120, interval * 2)
+
+    def state_available(self, state: str) -> bool:
+        """Whether entities should expose this state.
+
+        A sleeping vehicle stops sending infotainment data by design, so its
+        last known values stay visible while the vehicle status is still
+        fresh. Everything expires once the vehicle is unreachable entirely.
+        """
+        if self.state_fresh(state):
+            return True
+        return self.state_fresh("vehicle_status") and bool(self.vehicle_status.get("asleep", False))
 
     def _received_state(self, state: str) -> None:
         self._state_received_at[state] = time.monotonic()
@@ -430,9 +442,9 @@ class TeslaBLEManager:
             self._notify()
 
     def _infotainment_poll_decision(self, now_ms: int) -> dict[str, Any]:
-        is_asleep = self.state_available("vehicle_status") and bool(self.vehicle_status.get("asleep", False))
-        is_charging = self.state_available("charge_state") and self.charge_state.get("charging_state") in CHARGING_ACTIVE_STATES
-        is_sentry = self.state_available("closures_state") and tesla_ble.sentry_mode_active(self.closures_state.get("sentry_mode_state", 0))
+        is_asleep = self.state_fresh("vehicle_status") and bool(self.vehicle_status.get("asleep", False))
+        is_charging = self.state_fresh("charge_state") and self.charge_state.get("charging_state") in CHARGING_ACTIVE_STATES
+        is_sentry = self.state_fresh("closures_state") and tesla_ble.sentry_mode_active(self.closures_state.get("sentry_mode_state", 0))
         return self._poll_policy.update(now_ms, is_asleep, is_charging, is_sentry)
 
     async def _async_handle_polls(self) -> None:

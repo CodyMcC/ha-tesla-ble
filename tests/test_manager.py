@@ -11,6 +11,7 @@ import asyncio
 import base64
 import gc
 import hashlib
+import time
 import weakref
 from datetime import timedelta
 from types import SimpleNamespace
@@ -548,6 +549,30 @@ async def test_monotonic_wrap_and_stale_telemetry(hass, sim, monkeypatch, hass_s
     assert state_of(hass, "sensor", f"{VIN}_sensor_battery_level") == "unavailable"
     assert state_of(hass, "binary_sensor", f"{VIN}_binary_connection") == "off"
     assert state_of(hass, "button", f"{VIN}_button_pair") != "unavailable"
+
+
+async def test_asleep_vehicle_keeps_last_known_values(hass, sim, monkeypatch, hass_storage, enable_bluetooth):
+    """Infotainment values stay visible while the car sleeps; unreachable expires them."""
+    entry, _client = await setup_entry(hass, sim, monkeypatch, hass_storage)
+    manager = entry.runtime_data
+    await settle_until(hass, lambda: bool(manager.charge_state))
+    assert state_of(hass, "sensor", f"{VIN}_sensor_battery_level") == "55"
+
+    # The vehicle falls asleep: infotainment data stops, VCSEC keeps polling.
+    manager.vehicle_status = {**manager.vehicle_status, "asleep": True}
+    stale = manager._poll_policy.sleep_timeout_ms / 1000 * 2 + 60
+    manager._state_received_at["charge_state"] = time.monotonic() - stale
+    manager._state_received_at["vehicle_status"] = time.monotonic()
+    manager._notify()
+
+    assert manager.state_fresh("charge_state") is False
+    assert manager.state_available("charge_state") is True
+    assert state_of(hass, "sensor", f"{VIN}_sensor_battery_level") == "55"
+
+    # Once the vehicle status is stale as well it is unreachable: expire.
+    manager._state_received_at["vehicle_status"] = time.monotonic() - 3600
+    manager._notify()
+    assert state_of(hass, "sensor", f"{VIN}_sensor_battery_level") == "unavailable"
 
 
 async def test_periodic_polls_do_not_fill_queue_behind_existing_work(hass, sim, monkeypatch, hass_storage):

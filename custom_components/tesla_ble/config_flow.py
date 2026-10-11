@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
+import time
 from typing import Any
 
 import voluptuous as vol
@@ -53,6 +55,11 @@ MAC_RE = re.compile(r"^([0-9A-F]{2}:){5}[0-9A-F]{2}$")
 
 MANUAL_ADDRESS = "__manual__"
 
+# A vehicle must keep advertising across this settle window before discovery
+# offers it, so a car merely passing by does not create a setup flow.
+DISCOVERY_SETTLE_INTERVAL = 10
+DISCOVERY_SETTLE_CHECKS = 3
+
 VIN_SCHEMA = vol.Schema({vol.Required(CONF_VIN): str})
 
 
@@ -90,6 +97,8 @@ class TeslaBLEConfigFlow(ConfigFlow, domain=DOMAIN):
         """A Bluetooth advertisement matched a Tesla discovery matcher."""
         if not _is_tesla_advert(discovery_info):
             return self.async_abort(reason="not_supported")
+        if not await self._async_still_advertising(discovery_info.address):
+            return self.async_abort(reason="not_seen")
         self._address = discovery_info.address
         self._advertised_name = discovery_info.name
         # The address identifies the vehicle until its VIN is known. HA needs a
@@ -97,6 +106,15 @@ class TeslaBLEConfigFlow(ConfigFlow, domain=DOMAIN):
         await self.async_set_unique_id(discovery_info.address, raise_on_progress=False)
         self.context["title_placeholders"] = {"name": discovery_info.name or "Tesla vehicle"}
         return await self.async_step_vin()
+
+    async def _async_still_advertising(self, address: str) -> bool:
+        """Require the vehicle to keep advertising across a settle window."""
+        for _ in range(DISCOVERY_SETTLE_CHECKS):
+            await asyncio.sleep(DISCOVERY_SETTLE_INTERVAL)
+            info = bluetooth.async_last_service_info(self.hass, address, connectable=True)
+            if info is None or time.monotonic() - info.time > DISCOVERY_SETTLE_INTERVAL * 2:
+                return False
+        return True
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Pick a discovered vehicle or enter its address manually."""

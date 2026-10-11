@@ -10,6 +10,7 @@ import voluptuous as vol
 from homeassistant import config_entries, data_entry_flow
 from homeassistant.components import bluetooth
 
+from custom_components.tesla_ble import config_flow as config_flow_module
 from custom_components.tesla_ble.const import CONF_ADDRESS, CONF_PAIR_ON_SETUP, CONF_VIN, DOMAIN
 
 VIN = "5YJ30123456789ABC"
@@ -21,6 +22,18 @@ def _discovered(address: str, name: str | None, **extra) -> SimpleNamespace:
     fields = {"service_uuids": set(), "service_data": {}, "manufacturer_data": {}}
     fields.update(extra)
     return SimpleNamespace(address=address, name=name, **fields)
+
+
+@pytest.fixture
+def settled_advert(monkeypatch):
+    """Skip the discovery settle window and report the vehicle as present."""
+    monkeypatch.setattr(config_flow_module, "DISCOVERY_SETTLE_INTERVAL", 0)
+    monkeypatch.setattr(config_flow_module, "time", SimpleNamespace(monotonic=lambda: 1000.0))
+    monkeypatch.setattr(
+        bluetooth,
+        "async_last_service_info",
+        lambda *a, **kw: SimpleNamespace(time=1000.0, rssi=-60),
+    )
 
 
 async def test_manual_flow_creates_entry(hass) -> None:
@@ -75,7 +88,7 @@ async def test_user_flow_offers_discovered_devices(hass) -> None:
     assert result["errors"] == {CONF_VIN: "name_mismatch"}
 
 
-async def test_bluetooth_discovery_flow(hass) -> None:
+async def test_bluetooth_discovery_flow(hass, settled_advert) -> None:
     advertised = "S1a87a5a75f3df858C"
     # Derive the VIN whose advertised name this is: use the binding in reverse.
     import tesla_ble
@@ -102,7 +115,7 @@ async def test_bluetooth_discovery_flow(hass) -> None:
     assert result["data"][CONF_VIN] == vin
 
 
-async def test_bluetooth_discovery_accepts_beacon_without_name(hass) -> None:
+async def test_bluetooth_discovery_accepts_beacon_without_name(hass, settled_advert) -> None:
     """Passive-only scanners may forward the iBeacon payload without a name."""
     info = _discovered(
         ADDRESS,
@@ -118,7 +131,7 @@ async def test_bluetooth_discovery_accepts_beacon_without_name(hass) -> None:
     assert result["step_id"] == "vin"
 
 
-async def test_bluetooth_discovery_flow_can_be_ignored(hass) -> None:
+async def test_bluetooth_discovery_flow_can_be_ignored(hass, settled_advert) -> None:
     """Discovery flows need a unique ID for the Ignore action to work."""
     result = await hass.config_entries.flow.async_init(
         DOMAIN,
@@ -127,6 +140,19 @@ async def test_bluetooth_discovery_flow_can_be_ignored(hass) -> None:
     )
     flow = next(f for f in hass.config_entries.flow.async_progress() if f["flow_id"] == result["flow_id"])
     assert flow["context"].get("unique_id") == ADDRESS
+
+
+async def test_bluetooth_discovery_ignores_passing_vehicle(hass, monkeypatch) -> None:
+    """A car that only passes by must not create a setup flow."""
+    monkeypatch.setattr(config_flow_module, "DISCOVERY_SETTLE_INTERVAL", 0)
+    monkeypatch.setattr(bluetooth, "async_last_service_info", lambda *a, **kw: None)
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_BLUETOOTH},
+        data=_discovered(ADDRESS, ADVERTISED),
+    )
+    assert result["type"] == data_entry_flow.FlowResultType.ABORT
+    assert result["reason"] == "not_seen"
 
 
 async def test_bluetooth_discovery_ignores_other_devices(hass) -> None:

@@ -109,9 +109,12 @@ does not revoke the previous key on the vehicle.
 
 Telemetry expires separately by state source: vehicle-security data after two
 poll intervals (at least 120 seconds), infotainment data after two idle back-off
-intervals (at least 120 seconds). Expired entities become unavailable; connection
-status and pairing/control buttons remain usable. This is cached telemetry, not
-a guarantee of the vehicle's current physical state.
+intervals (at least 120 seconds). While the vehicle is **observed asleep**, its
+last known infotainment values stay visible instead of going unavailable (the
+*Asleep* sensor shows on); everything expires only once the vehicle is
+unreachable entirely. Connection status and pairing/control buttons remain
+usable. This is cached telemetry, not a guarantee of the vehicle's current
+physical state.
 
 See [TESTING.md](TESTING.md) for offline checks and a staged hardware checklist.
 
@@ -120,11 +123,13 @@ See [TESTING.md](TESTING.md) for offline checks and a staged hardware checklist.
 - **Vehicle not found**: check that the Bluetooth integration sees the car
   (Settings → Devices & Services → Bluetooth → *Advertisement monitor*), that a
   Bluetooth proxy is in range, and that the Tesla/Tessie phone apps are not
-  holding the (max. 3) BLE connections. Legacy Model S/X (pre-2021) are not
-  supported. If the car was scanned by BlueZ *before* this integration was
-  installed, its unchanged advertisement may never be re-emitted; clear the
-  stale entry once with `bluetoothctl remove <car-mac>` and the car is
-  rediscovered on the next advertisement.
+  holding the (max. 3) BLE connections. Discovery requires the vehicle to keep
+  advertising for about 30 seconds, so a car merely passing by is ignored.
+  Legacy Model S/X (pre-2021) are not supported. If the car was scanned by
+  BlueZ *before* this integration was installed, its unchanged advertisement
+  may never be re-emitted; clear the stale entry once with
+  `bluetoothctl remove <car-mac>` and the car is rediscovered on the next
+  advertisement.
 - **Pairing fails**: press Pair, then tap the card within ~30 s. The *Last
   command* sensor reports the result.
 - **Commands time out**: the vehicle may be asleep; press Wake first, or check

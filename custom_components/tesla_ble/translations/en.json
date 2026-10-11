@@ -44,6 +44,7 @@
     "abort": {
       "already_configured": "This vehicle is already configured.",
       "not_supported": "This Bluetooth device is not a Tesla vehicle.",
+      "not_seen": "The vehicle stopped advertising before setup started.",
       "reconfigure_successful": "Bluetooth address updated."
     }
   },
