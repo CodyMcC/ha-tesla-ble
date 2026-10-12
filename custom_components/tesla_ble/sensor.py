@@ -287,6 +287,7 @@ SENSOR_DESCRIPTIONS: tuple[TeslaSensorDescription, ...] = (
         device_class=SensorDeviceClass.PRESSURE,
         native_unit_of_measurement=UnitOfPressure.BAR,
         state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
     ),
     TeslaSensorDescription(
         key="tpms_front_right",
@@ -296,6 +297,7 @@ SENSOR_DESCRIPTIONS: tuple[TeslaSensorDescription, ...] = (
         device_class=SensorDeviceClass.PRESSURE,
         native_unit_of_measurement=UnitOfPressure.BAR,
         state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
     ),
     TeslaSensorDescription(
         key="tpms_rear_left",
@@ -305,6 +307,7 @@ SENSOR_DESCRIPTIONS: tuple[TeslaSensorDescription, ...] = (
         device_class=SensorDeviceClass.PRESSURE,
         native_unit_of_measurement=UnitOfPressure.BAR,
         state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
     ),
     TeslaSensorDescription(
         key="tpms_rear_right",
@@ -314,6 +317,7 @@ SENSOR_DESCRIPTIONS: tuple[TeslaSensorDescription, ...] = (
         device_class=SensorDeviceClass.PRESSURE,
         native_unit_of_measurement=UnitOfPressure.BAR,
         state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
     ),
     TeslaSensorDescription(
         key="charging_state",
