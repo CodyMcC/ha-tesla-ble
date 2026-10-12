@@ -121,8 +121,9 @@ for changes** option. Manual refresh and controls still work while paused.
 
 ### Keys and removal
 
-Keys survive restarts and updates. Keep Home Assistant backups private:
-credentials are stored locally, not encrypted.
+Keys survive restarts and updates. They are stored locally in owner-only files,
+not encrypted at rest. Restrict access to HA's configuration directory, use
+encrypted backups, and keep the backup recovery key separate from backup copies.
 
 **Regenerate key** replaces the local key and requires pairing again. Deleting
 the integration removes its local keys and Energy counter. Neither operation
@@ -160,5 +161,4 @@ vehicle CLI, and safe hardware testing.
 
 ## License
 
-[AGPL-3.0-only](LICENSE). See [NOTICE](NOTICE); earlier MIT-licensed revisions
-retain their original permissions in [LICENSES/MIT.txt](LICENSES/MIT.txt).
+[AGPL-3.0-only](LICENSE). See [NOTICE](NOTICE).
