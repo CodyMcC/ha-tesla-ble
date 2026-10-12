@@ -58,6 +58,9 @@ CHARGING_ACTIVE_STATES = ("Charging", "Starting")
 # HA's total_increasing statistics only treat a drop below 90% of the previous
 # reading as a reset; smaller dips are meter jitter/revisions (see sensor/recorder.py).
 ENERGY_RESET_RATIO = 0.9
+# AC energy is integrated from power samples; a sample is only trusted this long
+# when charging may have stopped unobserved (car asleep/unreachable).
+AC_ENERGY_MAX_GAP_SECONDS = 300
 
 # Advert RSSI is only meaningful for a few minutes; stale history from
 # habluetooth must not look like the vehicle is still nearby.
@@ -66,6 +69,16 @@ RSSI_MAX_AGE_SECONDS = 300
 
 def monotonic_ms() -> int:
     return int(time.monotonic() * 1000) & 0xFFFFFFFF
+
+
+def charger_power_w(state: dict[str, Any]) -> float | None:
+    """AC charging power in watts from the car's own voltage/current/phase readings."""
+    voltage = state.get("charger_voltage")
+    current = state.get("charger_actual_current")
+    if voltage is not None and current is not None:
+        return voltage * current * (state.get("charger_phases") or 1)
+    reported = state.get("charger_power")
+    return None if reported is None else reported * 1000
 
 
 class TeslaBLEManager:
@@ -89,6 +102,10 @@ class TeslaBLEManager:
         self.energy_total = 0.0
         self._energy_last_session: float | None = None
         self.energy_tracking_since: str | None = None
+        self.ac_energy_total = 0.0
+        self._ac_energy_last_power: float | None = None
+        self._ac_energy_last_time = 0.0
+        self._ac_energy_charging = False
         self.climate_state: dict[str, Any] = {}
         self.drive_state: dict[str, Any] = {}
         self.closures_state: dict[str, Any] = {}
@@ -167,6 +184,17 @@ class TeslaBLEManager:
         else:
             self.energy_tracking_since = dt_util.utcnow().isoformat()
             self._save_energy()
+        saved_ac_energy = self._store.load("energy_ac")
+        if saved_ac_energy is not None:
+            try:
+                total = json.loads(saved_ac_energy)["total"]
+                if not math.isfinite(total) or total < 0:
+                    raise ValueError("Invalid AC energy counter")
+                self.ac_energy_total = total
+            except (ValueError, TypeError, KeyError) as err:
+                raise HomeAssistantError(
+                    "Could not restore Tesla BLE AC energy counter; stored data was preserved"
+                ) from err
         self._create_vehicle()
         self.paired = self._vehicle.has_private_key and self._store.load("paired_key") == self._key_id()
         self._transport.set_notify_callback(self._on_notify)
@@ -395,9 +423,33 @@ class TeslaBLEManager:
                     self.energy_total = round(self.energy_total + session_energy, 2)
                     self._energy_last_session = session_energy
             self._save_energy()
+        self._integrate_ac_energy(state)
         self.charge_state = state
         self.charge_state_received_at = dt_util.utcnow()
         self._received_state("charge_state")
+
+    def _integrate_ac_energy(self, state: dict[str, Any]) -> None:
+        """Accumulate AC (wall-side) energy from the car's own power measurements."""
+        power = charger_power_w(state)
+        if power is None:
+            return
+        now = time.monotonic()
+        charging = state.get("charging_state") in CHARGING_ACTIVE_STATES
+        if self._ac_energy_last_power is not None:
+            elapsed = now - self._ac_energy_last_time
+            if elapsed > 0:
+                if not (self._ac_energy_charging and charging):
+                    # Charging may have stopped while unobserved; trust only the start of the gap.
+                    elapsed = min(elapsed, AC_ENERGY_MAX_GAP_SECONDS)
+                area = (self._ac_energy_last_power + power) / 2 * elapsed / 3_600_000
+                self.ac_energy_total = round(self.ac_energy_total + area, 4)
+                self._save_ac_energy()
+        self._ac_energy_last_power = power
+        self._ac_energy_last_time = now
+        self._ac_energy_charging = charging
+
+    def _save_ac_energy(self) -> None:
+        self._store.save("energy_ac", json.dumps({"total": self.ac_energy_total}).encode())
 
     def _save_energy(self) -> None:
         self._store.save(

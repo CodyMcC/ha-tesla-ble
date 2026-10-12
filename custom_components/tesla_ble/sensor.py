@@ -33,7 +33,7 @@ import tesla_ble
 
 from .const import TeslaBLEConfigEntry
 from .entity import TeslaBLEEntity, async_add_supported_entities
-from .manager import TeslaBLEManager
+from .manager import TeslaBLEManager, charger_power_w
 
 CHARGING_STATE_OPTIONS = [
     "Unknown",
@@ -55,23 +55,9 @@ def _odometer_miles(manager: TeslaBLEManager) -> float | None:
     return None if value is None else value / 100.0
 
 
-def _estimated_power(manager: TeslaBLEManager) -> float | None:
-    voltage = manager.charge_state.get("charger_voltage")
-    current = manager.charge_state.get("charger_actual_current")
-    if voltage is None or current is None:
-        return None
-    phases = manager.charge_state.get("charger_phases") or 1
-    return voltage * current * phases
-
-
 def _charger_power(manager: TeslaBLEManager) -> float | None:
-    """Charging power: computed from volts/amps/phases, which is more precise
-    than the integer kilowatts the vehicle reports, with a raw fallback."""
-    estimate = _estimated_power(manager)
-    if estimate is not None:
-        return estimate
-    reported = manager.charge_state.get("charger_power")
-    return None if reported is None else reported * 1000
+    """AC charging power from the car's voltage/current/phase readings, with a raw fallback."""
+    return charger_power_w(manager.charge_state)
 
 
 def _iec61851_state(manager: TeslaBLEManager) -> str | None:
@@ -174,6 +160,16 @@ SENSOR_DESCRIPTIONS: tuple[TeslaSensorDescription, ...] = (
         device_class=SensorDeviceClass.DISTANCE,
         native_unit_of_measurement=UnitOfLength.MILES,
         state_class=SensorStateClass.MEASUREMENT,
+    ),
+    TeslaSensorDescription(
+        key="charge_energy",
+        icon="mdi:transmission-tower",
+        state=None,
+        value_fn=lambda m: m.ac_energy_total,
+        device_class=SensorDeviceClass.ENERGY,
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        suggested_display_precision=2,
     ),
     TeslaSensorDescription(
         key="charge_energy_added",

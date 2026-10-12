@@ -26,6 +26,7 @@ from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
 
 from custom_components.tesla_ble import ble as ble_module
+from custom_components.tesla_ble import manager as manager_module
 from custom_components.tesla_ble.const import CONF_ADDRESS, CONF_PAIR_ON_SETUP, CONF_VIN, DOMAIN
 from custom_components.tesla_ble.update import TeslaFirmwareUpdate
 
@@ -773,7 +774,7 @@ async def test_entity_cleanup_and_defaults_preserve_existing_power_entity(hass, 
     assert registry.async_get(power_id).name == "My charging power"
     assert registry.async_get_entity_id("sensor", DOMAIN, f"{VIN}_sensor_charger_power") == power_id
     enabled = [s for s in hass.states.async_all("sensor") if s.attributes.get("device_class") in ("power", "energy")]
-    assert sorted(s.attributes["device_class"] for s in enabled) == ["energy", "power"]
+    assert sorted(s.attributes["device_class"] for s in enabled) == ["energy", "energy", "power"]
     for key in (
         "button_pair",
         "button_regenerate_key",
@@ -846,6 +847,33 @@ async def test_energy_meter_revisions_are_not_new_sessions(hass, sim, monkeypatc
     for value in (0.05, 0.4, 1.2):
         manager._on_charge_state({"charge_energy_added": value})
     assert manager.energy_total == 1.2
+
+
+async def test_ac_energy_integrates_power_and_survives_reload(hass, sim, monkeypatch, hass_storage):
+    """AC energy integrates power samples; gaps where charging may have stopped are capped."""
+    entry, _ = await setup_entry(hass, sim, monkeypatch, hass_storage)
+    manager = entry.runtime_data
+    await manager.async_set_polling(False)
+    monkeypatch.setattr(manager, "disconnect_delay", 10**9)
+    clock = SimpleNamespace(value=1_000_000.0)
+    monkeypatch.setattr(manager_module, "time", SimpleNamespace(monotonic=lambda: clock.value))
+    manager.ac_energy_total = 0.0
+    manager._ac_energy_last_power = None
+    manager._ac_energy_last_time = 0.0
+    manager._ac_energy_charging = False
+    energy_id = er.async_get(hass).async_get_entity_id("sensor", DOMAIN, f"{VIN}_sensor_charge_energy")
+    charging = {"charger_voltage": 230, "charger_actual_current": 10, "charger_phases": 1, "charging_state": "Charging"}
+    manager._on_charge_state(charging)
+    assert float(hass.states.get(energy_id).state) == 0
+    clock.value += 600
+    manager._on_charge_state(charging)
+    assert float(hass.states.get(energy_id).state) == pytest.approx(0.3833, abs=0.001)
+    clock.value += 3600
+    manager._on_charge_state(dict(charging, charging_state="Complete"))
+    assert float(hass.states.get(energy_id).state) == pytest.approx(0.3833 + 2.3 * 300 / 3600, abs=0.001)
+    await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done(wait_background_tasks=True)
+    assert float(hass.states.get(energy_id).state) == pytest.approx(0.575, abs=0.01)
 
 
 async def test_automatic_poll_does_not_wake_car_with_stale_awake_telemetry(hass, sim, monkeypatch, hass_storage):

@@ -182,8 +182,11 @@
       "battery_range": {
         "name": "Range"
       },
-      "charge_energy_added": {
+      "charge_energy": {
         "name": "Energy"
+      },
+      "charge_energy_added": {
+        "name": "Energy added"
       },
       "charge_limit_soc": {
         "name": "Charge limit"

@@ -19,12 +19,14 @@ near the car. No custom ESPHome vehicle component is required.
 Optional controls appear after the vehicle reports support. Not every vehicle
 supports every feature.
 
-> **Energy note:** Energy counts observed increases of the car's charging-session
-> meter. The car can revise an ended session's estimate downward; revisions stay
-> near the previous reading and are not counted as a new session, while a restart
-> below 90% of the previous reading is. Sessions that start and end unseen cannot
-> be reconstructed, and earlier totals may still include past over-counting;
-> history is not rewritten.
+> **Energy sensors:** **Energy** accumulates AC (wall-side) charging energy from
+> the car's own voltage/current/phase readings — no wall connector or meter
+> required. It is an estimate: polling gaps are only partly counted. **Energy
+> added** accumulates the car's charging-session meter (battery side); downward
+> revisions of an ended session are ignored, and a new session counts only when
+> it restarts below 90% of the previous reading. Sessions that start and end
+> unseen cannot be reconstructed, and earlier totals may still include past
+> over-counting; history is not rewritten.
 
 ## Requirements
 
@@ -112,8 +114,10 @@ for changes** option. Manual refresh and controls still work while paused.
 
 - Seat controls require climate/preconditioning or Climate Keeper to be on;
   selecting seat heat/cooling does not turn climate on.
-- Power is estimated from voltage/current/phases. Energy represents observed
-  energy added to the battery, not wall consumption or a lifetime meter.
+- **Power** is the car's own AC measurement (volts × amps × phases; the reported
+  power is an attribute). **Energy** integrates that AC power, **Energy added** is
+  the battery-side session total. Neither is a lifetime meter; AC energy is an
+  estimate and differs from battery-side energy by charging losses (~5–15%).
 - **Firmware** shows offered updates and their progress. The installed version
   is **Unknown** because BLE does not report it. The
   `tesla_ble.cancel_software_update` action can cancel a schedule/download,
