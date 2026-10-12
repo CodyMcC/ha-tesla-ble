@@ -19,9 +19,12 @@ near the car. No custom ESPHome vehicle component is required.
 Optional controls appear after the vehicle reports support. Not every vehicle
 supports every feature.
 
-> **Energy warning:** the accumulated Energy sensor has a known double-counting
-> bug when the car revises its session meter downward. Do not use it for billing
-> or accurate Energy Dashboard totals. Updating does not correct past statistics.
+> **Energy note:** Energy counts observed increases of the car's charging-session
+> meter. The car can revise an ended session's estimate downward; revisions stay
+> near the previous reading and are not counted as a new session, while a restart
+> below 90% of the previous reading is. Sessions that start and end unseen cannot
+> be reconstructed, and earlier totals may still include past over-counting;
+> history is not rewritten.
 
 ## Requirements
 
@@ -110,8 +113,7 @@ for changes** option. Manual refresh and controls still work while paused.
 - Seat controls require climate/preconditioning or Climate Keeper to be on;
   selecting seat heat/cooling does not turn climate on.
 - Power is estimated from voltage/current/phases. Energy represents observed
-  energy added to the battery, not wall consumption or a lifetime meter, and
-  is currently affected by the warning above.
+  energy added to the battery, not wall consumption or a lifetime meter.
 - **Firmware** shows offered updates and their progress. The installed version
   is **Unknown** because BLE does not report it. The
   `tesla_ble.cancel_software_update` action can cancel a schedule/download,
@@ -138,7 +140,7 @@ revokes the old key in the car; remove it from the vehicle's key list yourself.
 | Commands time out | Bluetooth range and free connection slots. Close competing phone/watch apps where practical; use **Wake up** to check recovery. |
 | Sleeping car's data does not refresh | Expected: **Refresh vehicle data** does not wake it. Use **Wake up** when you need fresh data. |
 | Dependency installation fails | Check HA version, CPU/platform, internet access, and the package-install error in HA logs. |
-| Energy total jumps | Known accumulation bug; do not rely on the total for accurate accounting. |
+| Energy total jumps | Older versions counted the car's downward session revisions as new energy. Update the integration; existing totals are not rewritten. |
 
 For a stale BlueZ discovery entry, removing only the car's cached entry with
 `bluetoothctl remove <car-mac>` can allow rediscovery on its next advertisement.

@@ -835,6 +835,19 @@ async def test_energy_accumulates_observed_sessions_and_survives_reload(hass, si
     assert float(hass.states.get(power_id).state) == 5000
 
 
+async def test_energy_meter_revisions_are_not_new_sessions(hass, sim, monkeypatch, hass_storage):
+    """The car revised this ended session downward (2026-10-12 data); none of it is new energy."""
+    entry, _ = await setup_entry(hass, sim, monkeypatch, hass_storage)
+    manager = entry.runtime_data
+    await manager.async_set_polling(False)
+    for value in (27.18, 27.10, 27.08, 27.04, 26.72, 26.70, 26.62):
+        manager._on_charge_state({"charge_energy_added": value})
+    assert manager.energy_total == 0
+    for value in (0.05, 0.4, 1.2):
+        manager._on_charge_state({"charge_energy_added": value})
+    assert manager.energy_total == 1.2
+
+
 async def test_automatic_poll_does_not_wake_car_with_stale_awake_telemetry(hass, sim, monkeypatch, hass_storage):
     entry, _ = await setup_entry(hass, sim, monkeypatch, hass_storage)
     manager = entry.runtime_data

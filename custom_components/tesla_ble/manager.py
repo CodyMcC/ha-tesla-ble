@@ -55,7 +55,9 @@ SEAT_COOL_FIELDS = {
 }
 
 CHARGING_ACTIVE_STATES = ("Charging", "Starting")
-ENERGY_RESET_DROP_KWH = 0.1
+# HA's total_increasing statistics only treat a drop below 90% of the previous
+# reading as a reset; smaller dips are meter jitter/revisions (see sensor/recorder.py).
+ENERGY_RESET_RATIO = 0.9
 
 # Advert RSSI is only meaningful for a few minutes; stale history from
 # habluetooth must not look like the vehicle is still nearby.
@@ -383,9 +385,14 @@ class TeslaBLEManager:
                 self._energy_last_session = session_energy
             else:
                 delta = round(session_energy - self._energy_last_session, 2)
-                # ponytail: smaller drops are meter jitter; exact resets need a BLE session ID, which is not reported.
-                if delta >= 0 or delta <= -ENERGY_RESET_DROP_KWH:
-                    self.energy_total = round(self.energy_total + (delta if delta >= 0 else session_energy), 2)
+                if delta >= 0:
+                    self.energy_total = round(self.energy_total + delta, 2)
+                    self._energy_last_session = session_energy
+                elif session_energy < self._energy_last_session * ENERGY_RESET_RATIO:
+                    # New session: the meter restarted well below the previous reading.
+                    # ponytail: a >10% downward revision of an ended session would still
+                    # double-count; BLE reports no session ID to distinguish it.
+                    self.energy_total = round(self.energy_total + session_energy, 2)
                     self._energy_last_session = session_energy
             self._save_energy()
         self.charge_state = state
