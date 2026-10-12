@@ -162,9 +162,46 @@ locations, and credentials. **Never upload `.storage` files or HA backups.**
 ## Development
 
 Built on [TeslaBLE](https://github.com/yoziru/tesla-ble) and its native Python
-bindings. See [TESTING.md](TESTING.md) for development checks, the standalone
-vehicle CLI, and safe hardware testing.
+bindings.
+
+### Checks
+
+```sh
+uv sync --locked
+uv run --no-sync ruff check custom_components tests scripts
+uv run --no-sync ruff format --check custom_components tests scripts
+uv run --no-sync mypy
+uv run --no-sync pytest tests -q
+uv run --no-sync python scripts/carcheck.py --help
+git diff --check
+```
+
+Offline tests cover transport, commands/entities, recovery, pairing, credential
+storage, and lifecycle behavior—not radio timing or physical vehicle controls.
+Strict mypy covers transport, storage adapters, and constants.
+
+### Standalone vehicle CLI
+
+Without HA, use Python 3.13+ with Bluetooth on a supported native-wheel platform:
+
+```sh
+pip install tesla-ble bleak
+python scripts/carcheck.py --vin <VIN> --scan
+python scripts/carcheck.py --vin <VIN> --pair --timeout 60
+python scripts/carcheck.py --vin <VIN> --poll --timeout 60
+```
+
+The CLI stores its own key in `~/.tesla-ble/carcheck-<VIN>.json`; pair HA
+separately. Polling does not intentionally wake the car; use `--wake` when needed.
+Failed or incomplete requests return a nonzero exit code.
+
+For hardware testing, keep the car parked, have a key card ready, and observe
+physical controls with sufficient clearance. Check pairing and full polling on
+both a local adapter and a stock ESPHome proxy (release competing connections
+first), then verify controls and HA state, range-loss recovery, reload during
+pending operations, sleep/no-wake polling, and independent vehicles/keys.
+Review logs and snapshots for private data before sharing; never publish keys.
 
 ## License
 
-[AGPL-3.0-only](LICENSE). See [NOTICE](NOTICE).
+[AGPL-3.0-only](LICENSE).
