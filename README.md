@@ -1,293 +1,164 @@
 # Tesla BLE for Home Assistant
 
-Control a Tesla vehicle directly over Bluetooth Low Energy from Home Assistant —
-no cloud, no API tokens. Works with the HA host's own Bluetooth adapter or with
-[ESPHome Bluetooth proxies](https://esphome.io/components/bluetooth_proxy.html),
-so a small ESP32 near the car is enough.
+[![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://www.hacs.xyz/docs/faq/custom_repositories/)
 
-This is the Home Assistant integration for the
-[TeslaBLE](https://github.com/yoziru/tesla-ble) C++ library, driven through its
-Python bindings (`tesla-ble` on PyPI). It is the successor to
-[yoziru/esphome-tesla-ble](https://github.com/yoziru/esphome-tesla-ble): instead
-of flashing a custom ESPHome component, install this integration and use stock
-ESPHome Bluetooth proxies for range.
+Monitor and control your Tesla over Bluetooth—no Tesla cloud account, API token,
+or subscription. Use your Home Assistant host's Bluetooth adapter or a stock
+[ESPHome Bluetooth proxy](https://esphome.io/components/bluetooth_proxy.html)
+near the car. No custom ESPHome vehicle component is required.
 
-## Features
+## What you get
 
-- Local BLE communication with VCSEC (vehicle security) and Infotainment domains
-- Pairing with a key card straight from Home Assistant
-- State: battery, range, charging, climate, odometer, tire pressure, closures,
-  sleep/presence state, lock state
-- Controls: lock/unlock, charging on/off, charge limit and amps, climate,
-  steering wheel heater, trunk/frunk/charge port/windows, wake, flash lights,
-  honk horn
-- Sleep-friendly polling: backs off automatically and disconnects when idle so
-  the vehicle can go to sleep
+- **Vehicle data:** battery, range, charging, temperatures, tire pressures,
+  odometer, doors, locks, and sleep state.
+- **Controls:** locks, charging, charge limit/current, climate, fitted seat
+  heating/cooling, trunk/frunk, charge port, windows, lights, and horn.
+- **Bluetooth presence:** know when the car is nearby—not GPS tracking.
+- **Sleep-friendly polling:** automatic updates do not deliberately wake the car.
+
+Optional controls appear after the vehicle reports support. Not every vehicle
+supports every feature.
+
+> **Energy warning:** the accumulated Energy sensor has a known double-counting
+> bug when the car revises its session meter downward. Do not use it for billing
+> or accurate Energy Dashboard totals. Updating does not correct past statistics.
 
 ## Requirements
 
-- Home Assistant **2026.10 or newer**, with the **Bluetooth** integration working (local adapter
-  and/or ESPHome Bluetooth proxy with active connections enabled)
-- A paired key: setup pairs automatically; to retry, enable **Pair vehicle**
-  in the device's entity settings, press it, then tap a key card on the console
-- The `tesla-ble` Python package (declared in the manifest; HACS installs it)
+- **Home Assistant 2026.3.0+**, preferably the latest patch release.
+- A working **Bluetooth** integration, using a local adapter or an ESPHome
+  proxy with **active connections** enabled.
+- A BLE-capable Tesla within range and a **key card** for pairing.
+  Legacy Model S/X (pre-2021) are not supported.
+- **x86-64 or ARM64** Linux (glibc/musl) or macOS. Windows and 32-bit ARM
+  native wheels are not provided.
+- Internet access to download dependencies during installation; vehicle
+  communication stays local.
+
+Tested with **HA 2026.10**. The minimum is based on the [Python 3.14 upgrade](https://www.home-assistant.io/blog/2026/03/04/release-20263/#running-on-python-314-)
+and API review, not runtime testing on 2026.3.
 
 ## Installation
 
-1. HACS → Integrations → three-dot menu → *Custom repositories* → add this
-   repository URL, category *Integration*.
-2. Install "Tesla BLE" and restart Home Assistant.
-3. *Settings → Devices & Services → Add Integration → Tesla BLE*.
-   The vehicle is discovered automatically from its Bluetooth advertisement;
-   pick it, enter the VIN, then follow the pairing step. If it is not
-   discovered (e.g. only passive scanners are nearby), enter the VIN and the
-   Bluetooth address manually (from HA's Bluetooth advertisement monitor or
-   `scripts/carcheck.py --scan`).
-4. Pairing starts right after the vehicle is added: hold a key card against
-   the center console reader when prompted. If the vehicle was not reachable,
-   enable **Pair vehicle** in its entity settings and press it to retry — progress and the result are
-   shown as persistent notifications.
+### HACS
 
-Home Assistant installs `tesla-ble` (and its wheels for Linux glibc/musl and
-macOS) automatically from PyPI; nothing needs to be built locally. To build a
-wheel yourself instead, see the bindings README in
-[yoziru/tesla-ble](https://github.com/yoziru/tesla-ble).
+Add this integration as a **custom repository**. HACS requires a public GitHub
+repository; use manual installation if you only have private repository access.
 
-## Testing without Home Assistant
+[![Open in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=yoziru&repository=ha-tesla-ble&category=integration)
 
-### Development checks
+1. In HACS, open **⋮ → Custom repositories**.
+2. Add `https://github.com/yoziru/ha-tesla-ble`, category **Integration**.
+3. Download **Tesla BLE**, then restart Home Assistant.
+4. Follow **Setup and pairing** below.
 
-```sh
-uv sync --locked
-uv run --no-sync ruff check custom_components tests scripts
-uv run --no-sync ruff format --check custom_components tests scripts
-uv run --no-sync mypy
-uv run --no-sync pytest tests -q
-```
+### Manual installation
 
-The checked-in lockfile fixes the HA test environment and development tools.
-Ruff checks and formats all Python sources. Strict mypy currently covers the
-BLE transport, credential storage adapters and constants against HA's types
-and the packaged TeslaBLE stubs. It does not yet cover the manager, entity
-platforms or config flow; these retain runtime integration coverage.
+1. Download a release or source archive using your repository access.
+2. Copy its `custom_components/tesla_ble` folder to
+   `<config>/custom_components/tesla_ble` in Home Assistant.
+3. Restart Home Assistant, then follow setup below.
 
-### Standalone vehicle check
+Home Assistant installs the native `tesla-ble` dependency automatically from
+PyPI. On supported platforms, no compilation is needed.
 
-`scripts/carcheck.py` talks to the vehicle directly from any machine with
-Python and Bluetooth (macOS, Linux, or a laptop with a USB dongle):
+## Setup and pairing
 
-```sh
-pip install tesla-ble bleak
-python scripts/carcheck.py --vin 5YJ... --scan     # find the car
-python scripts/carcheck.py --vin 5YJ... --poll     # connect, poll, print JSON
-python scripts/carcheck.py --vin 5YJ... --pair     # then tap a key card
-```
+[![Add integration](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start?domain=tesla_ble)
 
-## License
+1. Open **Settings → Devices & Services → Add Integration → Tesla BLE**.
+2. Select the discovered car and enter its **VIN**. If it is not discovered,
+   enter its Bluetooth address manually; find it in Bluetooth's
+   **Advertisement monitor**.
+3. When prompted, tap a **key card on the car's center-console reader**.
+   Pairing progress and results appear in Home Assistant notifications.
 
-The current integration is licensed under **AGPL-3.0-only**, matching its
-`tesla-ble` dependency. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
-Earlier MIT-licensed revisions retain their original permissions; their
-notice is preserved in [LICENSES/MIT.txt](LICENSES/MIT.txt). No history
-rewrite is required to change the license for future revisions.
+If pairing fails, enable **Pair vehicle** on the device's entity page and press
+it to retry. Add the integration separately for each vehicle.
 
-## Entities
+## Daily use
 
-| Platform | Examples |
+Open the Tesla BLE device page to find its sensors and controls.
+
+| Task | Entity or setting |
 | --- | --- |
-| `sensor` | battery, range, energy (kWh), power (W, estimated from volts/amps/phases; reported power and electrical limits are attributes), charge completion time, odometer, temperatures, tire pressures, charging state, charge limit reason, IEC 61851 state, gear |
-| `update` | vehicle firmware: availability, status, release link, download/install progress and installation |
-| `binary_sensor` | asleep, charging, charge cable connected, connection, doors (with per-door attributes), scheduled charging/departure, user present, parked |
-| `device_tracker` | home while the car is within Bluetooth range, not_home once it leaves |
-| `lock` | doors, charge port latch |
-| `switch` | charging, steering wheel heater, sentry mode, polling |
-| `number` | charge limit, charging amps (ranges come from the vehicle) |
-| `select` | fitted seat heating/cooling levels, cabin overheat protection and activation temperature |
-| `cover` | charge port door, trunk, frunk, windows (with per-window attributes) |
-| `button` | wake up, refresh vehicle data, flash lights, honk horn |
+| Fetch data without waking the car | **Refresh vehicle data** |
+| Wake a sleeping car | **Wake up** |
+| Pause automatic updates | **Polling** switch |
+| Change polling intervals | Integration **Options** |
+| Change the Bluetooth address without losing keys | **Reconfigure** |
+| Check whether the car is nearby | **Location** or **Connection** |
+| Check a command's result | **Last command** |
 
-There is one **Power** sensor in watts and one **Energy** sensor in kWh. Energy
-starts at zero with the first observed session reading, then accumulates observed
-increases in the vehicle's session-energy counter, including inferred session
-resets. Drops below 0.1 kWh are treated as reporting jitter, retaining the
-previous high-water reading so rebounds are not counted again. Larger drops
-are inferred as resets; BLE supplies no session ID to distinguish them from
-larger meter corrections. `ENERGY_RESET_DROP_KWH` controls this tolerance.
-Its total and last session reading are stored together across reloads,
-restarts, and key regeneration; deleting the vehicle removes the counter. For
-existing vehicles, tracking starts when this feature is installed, not retroactively
-from the original installation date. `tracking_since` and `session_energy_kwh`
-attributes identify the tracking period and current session. It is energy added
-to the battery, not wall consumption: BLE has no lifetime meter. Completely missed
-sessions, and resets where the new session already exceeds the last reading,
-cannot be reconstructed. Writes are atomic and delayed by one second; an abrupt
-power loss can lose that last unsaved observation, not the entire total.
+### Sleep and availability
 
-The charge limit is exposed once, as a readable number control. Doors have one
-open/closed binary sensor with per-door attributes, separate from the door lock
-because locked and closed are different states. Windows have one cover combining
-vent/close controls, aggregate state and per-window attributes; there are no
-individual door/window sensors or separate window switches/sensors.
-Phases, charger/vehicle current limits, requested current, BLE signal, **Pair vehicle**,
-**Regenerate key**, and **Unlatch driver door** are disabled by default. Enable
-them in the device's entity settings when needed; setup pairs automatically.
-Existing entity IDs and custom names are retained, except retired duplicates.
-**IEC 61851 state** and **Charge limit reason** are ordinary sensors enabled by default.
-**Voltage** and **Current** (actual draw) are also enabled ordinary
-sensors. Phases, limits and requested current remain available in Power's attributes,
-with their separate diagnostic sensors disabled by default.
-The presence tracker is named **Location**; firmware and polling entities are
-named **Firmware** and **Polling**.
+Automatic polling and manual refresh do not send wake commands. Explicit
+controls can wake the car. A sleeping car may show **cached data**, not current
+measurements. When it leaves Bluetooth range, telemetry becomes unavailable
+after about two minutes; **Location** changes to `not_home`.
 
-### Fitted climate and roof controls
+Defaults: vehicle status every **60 seconds**, awake data every **30 seconds**,
+charging/sentry data every **10 seconds**, and idle/asleep data every
+**660 seconds**. Idle disconnect defaults to **120 seconds**. Bluetooth activity
+can still affect sleep and battery use.
 
-Each seat has one climate select, matching the vehicle: Off, three heat levels,
-and — only for seats the vehicle reports as ventilated — three cooling levels.
-The icon follows the reported direction (heating/cooling). Heat/cool selections
-send one request; the vehicle disables Auto and clears the opposite direction.
-Off clears supported cooling, then heating, independently of stale levels.
-A failure or disconnect cancels later steps; rapid selections cannot interleave
-the Off sequence. Already acknowledged changes are not rolled back.
-Seat controls are optional preconditioning extras: climate/preconditioning or
-Climate Keeper must already be on; selecting a seat mode does not turn it on.
-Auto controls automatic seat
-climate, not just heating. A lost reply can leave the outcome unknown; the last
-command sensor says so instead of claiming that the vehicle did nothing.
+Use the **Polling** switch to pause updates—not HA's generic **Enable polling
+for changes** option. Manual refresh and controls still work while paused.
 
-Seat climate (including Auto in the dropdown), steering-wheel heat, cabin
-overheat protection, its temperature selector, and the sunroof cover are created
-only after the vehicle reports their corresponding optional fields. An explicit
-zero/false state is treated as evidence of support, not an exact fitted inventory. Observed support is stored
-across reloads/restarts; missing fields in a partial response never delete an
-already detected feature. Controls show reported state, never an optimistic
-command-acknowledgment state.
+### Useful limitations
 
-Cabin protection supports Off/On and Fan only when the vehicle reports support;
-activation temperature uses Low/Medium/High protocol levels without inventing
-physical temperatures. Its active/allowed status and not-running reason are
-attributes.
+- Seat controls require climate/preconditioning or Climate Keeper to be on;
+  selecting seat heat/cooling does not turn climate on.
+- Power is estimated from voltage/current/phases. Energy represents observed
+  energy added to the battery, not wall consumption or a lifetime meter, and
+  is currently affected by the warning above.
+- **Firmware** shows offered updates and their progress. The installed version
+  is **Unknown** because BLE does not report it. The
+  `tesla_ble.cancel_software_update` action can cancel a schedule/download,
+  not an installation already running.
+- Some diagnostic and pairing entities are disabled by default. Enable them
+  on the device's entity page when needed.
 
-The sunroof is a position-capable cover (open/close/set position), not a binary
-sensor; it does not appear on cars that never report sunroof telemetry. The public
-BLE schema reports steering-wheel Auto/Low/High state but defines only an on/off
-command: a mode sensor reports that state, while the existing switch controls
-on/off. No unsupported mode-selection command is fabricated.
+### Keys and removal
 
-BLE has no vehicle-configuration endpoint for exact model/trim/year or an option
-inventory. VIN information cannot reliably establish fitted hardware. Capability
-discovery is observation-based: until a field is reported, support is unknown,
-not definitively absent. The C++ library owns commands, validation, protocol state
-decoding and delayed no-wake refreshes; HA owns feature memory/discovery, entity
-types, labels and availability. ESPHome can use the same new Vehicle APIs without
-reimplementing wire encoding; no ESPHome firmware deployment is needed for HA.
+Keys survive restarts and updates. Keep Home Assistant backups private:
+credentials are stored locally, not encrypted.
 
-BLE does not report the installed firmware version: the update entity labels it
-**Unknown**. With no pending update both version fields are Unknown and the entity
-is off; an offered update uses its reported version (or **Pending update** if no
-version is supplied). No firmware version is inferred or remembered as installed.
-Installation is offered only for a freshly reported, downloaded update.
-HA has no native update-cancel control; use the entity-targeted
-`tesla_ble.cancel_software_update` action to cancel a schedule or download. It
-cannot cancel an installation already running. There are no separate update
-sensors or install/cancel buttons.
-
-Entity names follow the popular Fleet API integration
-([`tesla_custom`](https://github.com/alandtse/tesla)) wherever an equivalent
-exists, so entity IDs are familiar and automations can be ported over. BLE-only
-extras (tire pressures, charge-limit reason,
-cable latch, BLE signal, pairing buttons) remain as additional entities.
-
-## Options
-
-- **Vehicle status poll interval** (default 60 s)
-- **Awake / charging poll intervals** and **idle back-off timeout**
-- **Disconnect after idle** (default 120 s)
-
-HA's system option **Enable polling for changes** only controls HA's entity
-polling scheduler. All Tesla BLE entities set `should_poll=False`, so that
-scheduler is never started and the option does not affect this integration's
-own manager timer. Use **Polling** to pause/resume automatic polling;
-manual refresh and vehicle commands still work while paused.
-
-The manager ticks every 500 ms to process queued work, not to query the car every
-500 ms. Default query intervals are 60 s for vehicle-security status, 30 s for
-awake infotainment, 10 s while charging/sentry is active, and 660 s once asleep
-or idle long enough. Automatic infotainment and manual telemetry refresh use
-**NO_WAKE_SKIP**: they never send a wake command. Explicit controls can wake the
-car. No-wake does not mean zero battery use: BLE connections and queries still
-cost energy and can influence sleep; overnight behavior needs hardware validation.
-
-### History and long-term statistics
-
-Recommended long-term statistics: **Energy**, **Power**, battery level, range,
-odometer, and cabin/outside temperatures; tire-pressure trends are optional.
-HA keeps their statistics independently of its raw-history retention setting.
-Keep ordinary history for charging state, presence, door/window/lock state,
-climate, charge limits and firmware status when useful for automations/debugging.
-These non-numeric states do not get numeric long-term statistics.
-
-Exclude last-command text, connection chatter, BLE signal, low-level electrical
-diagnostics, polling and action buttons from Recorder unless troubleshooting.
-Transient sensor attributes (session readings, electrical details and raw values)
-are available live but excluded from Recorder to avoid redundant history.
-Per-door/window attributes remain recorded so closure changes are traceable.
-The integration does not modify global Recorder retention/exclusions or delete
-existing history; those remain your HA configuration choices.
-
-The charging-amps slider range follows the vehicle's own limit
-(`charge_current_request_max`); no configuration is needed.
-
-Use the integration's **Reconfigure** menu to change a Bluetooth address while
-keeping the VIN and credentials. Deleting the entry removes its local keys and
-sessions; it does not remove the key from the vehicle's whitelist.
-
-Keys remain plaintext/base64 in HA's `.storage`, in owner-only (0600), atomically
-written files. Keep HA backups private. Pairing generates and durably saves the
-key before sending it to the car. A key's existence alone does not confirm pairing:
-the per-vehicle repair warning clears after successful pairing or a verified,
-successful session handshake. Existing keys are retained during that check.
-
-**Regenerate key** is disabled by default. Enabling and pressing it disconnects
-the car, replaces the local key, drops sessions and requires pairing again. It
-does not revoke the previous key on the vehicle.
-
-Telemetry expires separately by state source: vehicle-security data after two
-poll intervals (at least 120 seconds), infotainment data after two idle back-off
-intervals (at least 120 seconds). While the vehicle is **observed asleep**, its
-last known infotainment values stay visible instead of going unavailable (the
-*Asleep* sensor shows on). When the vehicle **leaves Bluetooth range**, all
-telemetry expires to *unavailable* about two minutes after the last contact,
-the *Location* tracker switches to *not_home* and the *Connection*
-binary sensor turns off. Use the tracker or the connection sensor for
-automations; `unavailable` is a data-quality signal, not a presence signal.
-Connection status and pairing/control buttons remain usable. This is cached
-telemetry, not a guarantee of the vehicle's current physical state. The persisted
-Energy total remains available even when the vehicle is away.
-
-See [TESTING.md](TESTING.md) for offline checks and a staged hardware checklist.
+**Regenerate key** replaces the local key and requires pairing again. Deleting
+the integration removes its local keys and Energy counter. Neither operation
+revokes the old key in the car; remove it from the vehicle's key list yourself.
 
 ## Troubleshooting
 
-- **Vehicle not found**: check that the Bluetooth integration sees the car
-  (Settings → Devices & Services → Bluetooth → *Advertisement monitor*), that a
-  Bluetooth proxy is in range, and that the Tesla/Tessie phone apps are not
-  holding the (max. 3) BLE connections. Discovery requires the vehicle to keep
-  advertising for about 30 seconds, so a car merely passing by is ignored.
-  Legacy Model S/X (pre-2021) are not supported. If the car was scanned by
-  BlueZ *before* this integration was installed, its unchanged advertisement
-  may never be re-emitted; clear the stale entry once with
-  `bluetoothctl remove <car-mac>` and the car is rediscovered on the next
-  advertisement.
-- **Pairing fails**: enable and press Pair vehicle, then tap the card within ~30 s. The *Last
-  command* sensor reports the result.
-- **Commands time out**: the vehicle may be asleep; press Wake first, or check
-  the *Asleep* binary sensor.
-- **Multiple vehicles**: add the integration once per vehicle; each entry has
-  its own connection, storage and entities. The vehicle-side limit of ~3
-  simultaneous BLE connections is *per car* (phone apps, watches, Charge on
-  Solar) — the integration disconnects when idle to leave room, and one
-  vehicle never blocks another.
+| Problem | What to check |
+| --- | --- |
+| Car not discovered | Bluetooth Advertisement monitor, proxy range, active connections, and supported vehicle. Discovery requires about 30 seconds of advertising. |
+| Pairing fails | Keep the car reachable, retry **Pair vehicle**, and tap the card when prompted. Check notifications and **Last command**. |
+| Commands time out | Bluetooth range and free connection slots. Close competing phone/watch apps where practical; use **Wake up** to check recovery. |
+| Sleeping car's data does not refresh | Expected: **Refresh vehicle data** does not wake it. Use **Wake up** when you need fresh data. |
+| Dependency installation fails | Check HA version, CPU/platform, internet access, and the package-install error in HA logs. |
+| Energy total jumps | Known accumulation bug; do not rely on the total for accurate accounting. |
+
+For a stale BlueZ discovery entry, removing only the car's cached entry with
+`bluetoothctl remove <car-mac>` can allow rediscovery on its next advertisement.
+
+### Get help
+
+Enable **debug logging** on the integration entry, reproduce the problem, then
+disable it to download the log. Download diagnostics from the entry menu too.
+
+[Open an issue](https://github.com/yoziru/ha-tesla-ble/issues) with your HA and
+integration versions, host architecture, adapter/proxy setup, vehicle model/year,
+and the failing action. Review attachments and redact VINs, Bluetooth addresses,
+locations, and credentials. **Never upload `.storage` files or HA backups.**
+
+## Development
+
+Built on [TeslaBLE](https://github.com/yoziru/tesla-ble) and its native Python
+bindings. See [TESTING.md](TESTING.md) for development checks, the standalone
+vehicle CLI, and safe hardware testing.
 
 ## License
 
-MIT
+[AGPL-3.0-only](LICENSE). See [NOTICE](NOTICE); earlier MIT-licensed revisions
+retain their original permissions in [LICENSES/MIT.txt](LICENSES/MIT.txt).

@@ -2,21 +2,19 @@
 
 ## Offline checks
 
-Pre-release install: copy `custom_components/tesla_ble` from the local
-`dist/ha-tesla-ble.zip` into HA and install the published `tesla-ble==6.0.1`
-wheel (or a matching rebuilt wheel from `../tesla-ble/dist/`) into **HA's
-Python runtime** before restarting. Linux HA needs a Linux wheel, even when
-Docker runs on a Mac. Do not use the old distributions under
-`dist/pre-audit/`. Full cross-repository instructions are in
-`../TESLA-BLE-TESTING.md`. `tesla-ble==6.0.1` is published on PyPI; the
-runtime CI dependency resolves from the index once the release is available.
+The integration declares its published native dependency in `manifest.json`;
+Home Assistant installs it automatically. For manual wheel testing, use a wheel
+matching **HA's Python runtime and architecture**, not the development host.
 
-Run from this repository after the current shared `tesla-ble` bindings have been
-built and installed into this repository's existing environment:
+Run the locked development environment from this repository:
 
 ```sh
-PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest tests/ -q -p no:cacheprovider
-.venv/bin/python scripts/carcheck.py --help
+uv sync --locked
+uv run --no-sync ruff check custom_components tests scripts
+uv run --no-sync ruff format --check custom_components tests scripts
+uv run --no-sync mypy
+uv run --no-sync pytest tests -q
+uv run --no-sync python scripts/carcheck.py --help
 git diff --check
 ```
 
@@ -30,6 +28,23 @@ options/address reconfiguration and CLI completion/timeouts.
 
 These tests do **not** validate radio timing, firmware behavior, proxy indication
 subscription or vehicle-specific physical controls.
+
+The lockfile selects the runtime test environment. See the README for the
+minimum HA version and the scope of compatibility validation.
+Strict mypy covers BLE transport, credential storage adapters and constants;
+other modules retain runtime integration coverage.
+
+## Standalone vehicle CLI
+
+Without Home Assistant, use Python 3.13+ on a supported native-wheel platform
+with Bluetooth:
+
+```sh
+pip install tesla-ble bleak
+python scripts/carcheck.py --vin <VIN> --scan
+python scripts/carcheck.py --vin <VIN> --poll
+python scripts/carcheck.py --vin <VIN> --pair
+```
 
 ## Hardware checks — run manually
 
