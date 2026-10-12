@@ -46,7 +46,7 @@ class TeslaPairButton(TeslaBLEEntity, ButtonEntity):
     """Start pairing: press this, then tap a key card on the console."""
 
     _attr_translation_key = "pair"
-    _attr_entity_category = EntityCategory.CONFIG
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_entity_registry_enabled_default = False
 
     def __init__(self, manager: TeslaBLEManager) -> None:
@@ -89,7 +89,7 @@ class TeslaHonkHornButton(TeslaBLEEntity, ButtonEntity):
 
 class TeslaRegenerateKeyButton(TeslaBLEEntity, ButtonEntity):
     _attr_translation_key = "regenerate_key"
-    _attr_entity_category = EntityCategory.CONFIG
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_entity_registry_enabled_default = False
 
     def __init__(self, manager: TeslaBLEManager) -> None:

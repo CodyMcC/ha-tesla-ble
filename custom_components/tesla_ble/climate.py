@@ -54,6 +54,7 @@ async def async_setup_entry(
 
 class TeslaClimate(TeslaBLEEntity, ClimateEntity):
     _attr_translation_key = "climate"
+    _attr_icon = "mdi:air-conditioner"
     _attr_hvac_modes = [HVACMode.OFF, HVACMode.HEAT_COOL]
     _attr_preset_modes = [PRESET_NORMAL, PRESET_DEFROST, PRESET_KEEP_ON, PRESET_DOG, PRESET_CAMP]
     _attr_fan_modes = [FAN_NORMAL, FAN_BIOWEAPON]

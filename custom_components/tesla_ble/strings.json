@@ -188,9 +188,6 @@
       "charge_energy_added": {
         "name": "Energy added"
       },
-      "charge_limit_soc": {
-        "name": "Charge limit"
-      },
       "charger_actual_current": {
         "name": "Current"
       },

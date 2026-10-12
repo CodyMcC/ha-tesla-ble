@@ -19,6 +19,7 @@ from types import SimpleNamespace
 import pytest
 import tesla_ble
 from conftest import TEST_PRIVATE_KEY_PEM
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
@@ -775,17 +776,24 @@ async def test_entity_cleanup_and_defaults_preserve_existing_power_entity(hass, 
     assert registry.async_get_entity_id("sensor", DOMAIN, f"{VIN}_sensor_charger_power") == power_id
     enabled = [s for s in hass.states.async_all("sensor") if s.attributes.get("device_class") in ("power", "energy")]
     assert sorted(s.attributes["device_class"] for s in enabled) == ["energy", "energy", "power"]
-    for key in (
-        "button_pair",
-        "button_regenerate_key",
-        "sensor_evse_max_current",
-        "sensor_vehicle_max_charge_current",
-        "sensor_charge_current_request",
-        "sensor_charger_phases",
-    ):
-        domain = key.split("_", 1)[0]
-        entity_id = registry.async_get_entity_id(domain, DOMAIN, f"{VIN}_{key}")
+    for key in ("button_pair", "button_regenerate_key"):
+        entity_id = registry.async_get_entity_id("button", DOMAIN, f"{VIN}_{key}")
         assert registry.async_get(entity_id).disabled_by == er.RegistryEntryDisabler.INTEGRATION
+        assert registry.async_get(entity_id).entity_category == EntityCategory.DIAGNOSTIC
+    for key in (
+        "evse_max_current",
+        "vehicle_max_charge_current",
+        "charge_current_request",
+        "charger_phases",
+        "tpms_front_left",
+        "tpms_front_right",
+        "tpms_rear_left",
+        "tpms_rear_right",
+    ):
+        entity_id = registry.async_get_entity_id("sensor", DOMAIN, f"{VIN}_sensor_{key}")
+        assert registry.async_get(entity_id).disabled_by is None
+        assert registry.async_get(entity_id).entity_category is None
+        assert hass.states.get(entity_id) is not None
     assert registry.async_get_entity_id("sensor", DOMAIN, f"{VIN}_sensor_charge_limit_soc") is None
     assert registry.async_get_entity_id("sensor", DOMAIN, f"{VIN}_sensor_software_update") is None
     for key in ("door_driver_front", "window_driver_front"):

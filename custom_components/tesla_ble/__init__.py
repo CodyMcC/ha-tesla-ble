@@ -71,6 +71,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: TeslaBLEConfigEntry) -> 
         prefix = "binary" if domain == "binary_sensor" else domain
         if entity_id := registry.async_get_entity_id(domain, "tesla_ble", f"{manager.vin}_{prefix}_{key}"):
             registry.async_remove(entity_id)
+    # Charging-detail sensors are ordinary, enabled entities now; re-enable any
+    # that earlier versions registered as disabled-by-default.
+    for key in (
+        "sensor_evse_max_current",
+        "sensor_vehicle_max_charge_current",
+        "sensor_charge_current_request",
+        "sensor_charger_phases",
+    ):
+        entity_id = registry.async_get_entity_id("sensor", "tesla_ble", f"{manager.vin}_{key}")
+        if entity_id and registry.async_get(entity_id).disabled_by is er.RegistryEntryDisabler.INTEGRATION:
+            registry.async_update_entity(entity_id, disabled_by=None)
     try:
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     except BaseException:

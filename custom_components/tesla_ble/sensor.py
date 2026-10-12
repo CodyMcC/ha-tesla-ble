@@ -221,8 +221,6 @@ SENSOR_DESCRIPTIONS: tuple[TeslaSensorDescription, ...] = (
         device_class=SensorDeviceClass.CURRENT,
         native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
         state_class=SensorStateClass.MEASUREMENT,
-        entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
     ),
     TeslaSensorDescription(
         key="vehicle_max_charge_current",
@@ -231,8 +229,6 @@ SENSOR_DESCRIPTIONS: tuple[TeslaSensorDescription, ...] = (
         device_class=SensorDeviceClass.CURRENT,
         native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
         state_class=SensorStateClass.MEASUREMENT,
-        entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
     ),
     TeslaSensorDescription(
         key="charge_current_request",
@@ -241,16 +237,12 @@ SENSOR_DESCRIPTIONS: tuple[TeslaSensorDescription, ...] = (
         device_class=SensorDeviceClass.CURRENT,
         native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
         state_class=SensorStateClass.MEASUREMENT,
-        entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
     ),
     TeslaSensorDescription(
         key="charger_phases",
         icon="mdi:sine-wave",
         value_fn=lambda m: m.charge_state.get("charger_phases"),
         state_class=SensorStateClass.MEASUREMENT,
-        entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
     ),
     TeslaSensorDescription(
         key="charging_rate",
@@ -295,7 +287,6 @@ SENSOR_DESCRIPTIONS: tuple[TeslaSensorDescription, ...] = (
         device_class=SensorDeviceClass.PRESSURE,
         native_unit_of_measurement=UnitOfPressure.BAR,
         state_class=SensorStateClass.MEASUREMENT,
-        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     TeslaSensorDescription(
         key="tpms_front_right",
@@ -305,7 +296,6 @@ SENSOR_DESCRIPTIONS: tuple[TeslaSensorDescription, ...] = (
         device_class=SensorDeviceClass.PRESSURE,
         native_unit_of_measurement=UnitOfPressure.BAR,
         state_class=SensorStateClass.MEASUREMENT,
-        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     TeslaSensorDescription(
         key="tpms_rear_left",
@@ -315,7 +305,6 @@ SENSOR_DESCRIPTIONS: tuple[TeslaSensorDescription, ...] = (
         device_class=SensorDeviceClass.PRESSURE,
         native_unit_of_measurement=UnitOfPressure.BAR,
         state_class=SensorStateClass.MEASUREMENT,
-        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     TeslaSensorDescription(
         key="tpms_rear_right",
@@ -325,7 +314,6 @@ SENSOR_DESCRIPTIONS: tuple[TeslaSensorDescription, ...] = (
         device_class=SensorDeviceClass.PRESSURE,
         native_unit_of_measurement=UnitOfPressure.BAR,
         state_class=SensorStateClass.MEASUREMENT,
-        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     TeslaSensorDescription(
         key="charging_state",
