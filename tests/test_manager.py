@@ -177,6 +177,7 @@ async def test_poll_updates_entities(hass: HomeAssistant, sim, monkeypatch, hass
     # User-visible entity ids stay stable (translation keys resolve to names).
     assert hass.states.get("sensor.tesla_789abc_battery") is not None
     assert state_of(hass, "sensor", f"{VIN}_sensor_battery_level") == "55"
+    assert er.async_get(hass).async_get_entity_id("sensor", DOMAIN, f"{VIN}_sensor_usable_battery_level") is not None
     assert state_of(hass, "sensor", f"{VIN}_sensor_charger_power") == "unknown"
     assert distance_in_miles(hass, "sensor", f"{VIN}_sensor_odometer") == pytest.approx(1234.5, abs=0.1)
     assert state_of(hass, "sensor", f"{VIN}_sensor_charging_state") == "Charging"
@@ -1785,3 +1786,128 @@ async def test_diagnostics_redact_identifiers(hass, sim, monkeypatch, hass_stora
     assert diagnostics["entry"]["data"]["vin"] == "**REDACTED**"
     assert diagnostics["entry"]["data"]["address"] == "**REDACTED**"
     assert diagnostics["connection"]["address"] == "**REDACTED**"
+
+
+async def test_set_only_power_buttons(hass, sim, monkeypatch, hass_storage) -> None:
+    """Low power / keep accessory have no readable state → enable/disable buttons."""
+    entry, _ = await setup_entry(hass, sim, monkeypatch, hass_storage)
+    manager = entry.runtime_data
+    registry = er.async_get(hass)
+    await settle_until(hass, lambda: manager.connected and manager.state_fresh("vehicle_status"))
+
+    # SimulatedVehicle has no handlers for these actions; complete via async_command.
+    issued: list[str] = []
+
+    async def complete(name, action, **kwargs):
+        issued.append(name)
+        manager.last_command = f"{name}: ok"
+        manager._notify()
+
+    monkeypatch.setattr(manager, "async_command", complete)
+
+    buttons = [
+        ("button_enable_low_power_mode", "Low Power Mode On"),
+        ("button_disable_low_power_mode", "Low Power Mode Off"),
+        ("button_enable_keep_accessory_power", "Keep Accessory Power On"),
+        ("button_disable_keep_accessory_power", "Keep Accessory Power Off"),
+    ]
+    for key, expected in buttons:
+        button_id = registry.async_get_entity_id("button", DOMAIN, f"{VIN}_{key}")
+        assert button_id is not None, key
+        assert registry.async_get(button_id).disabled_by is None, key
+        await hass.services.async_call("button", "press", {"entity_id": button_id}, blocking=True)
+        await hass.async_block_till_done()
+        assert state_of(hass, "sensor", f"{VIN}_sensor_last_command") == f"{expected}: ok"
+        assert expected in issued
+
+    # No optimistic switches for set-only modes.
+    assert registry.async_get_entity_id("switch", DOMAIN, f"{VIN}_switch_low_power_mode") is None
+    assert registry.async_get_entity_id("switch", DOMAIN, f"{VIN}_switch_keep_accessory_power") is None
+
+
+async def test_usable_battery_level_sensor(hass, sim, monkeypatch, hass_storage) -> None:
+    """Usable battery level is exposed from charge_state when the vehicle reports it."""
+    entry, _ = await setup_entry(hass, sim, monkeypatch, hass_storage)
+    manager = entry.runtime_data
+    registry = er.async_get(hass)
+    await settle_until(hass, lambda: bool(manager.charge_state) and manager._vehicle.pending_command_count == 0)
+
+    assert registry.async_get_entity_id("sensor", DOMAIN, f"{VIN}_sensor_usable_battery_level") is not None
+
+    manager._on_charge_state({**manager.charge_state, "usable_battery_level": 50})
+    manager._notify()
+    await hass.async_block_till_done()
+    assert state_of(hass, "sensor", f"{VIN}_sensor_usable_battery_level") == "50"
+    assert state_of(hass, "sensor", f"{VIN}_sensor_battery_level") == "55"
+
+
+async def test_outlet_powershare_tonneau_capabilities(hass, sim, monkeypatch, hass_storage) -> None:
+    """Outlet / powershare / tonneau entities appear only after capability fields are observed."""
+    entry, _ = await setup_entry(hass, sim, monkeypatch, hass_storage)
+    manager = entry.runtime_data
+    registry = er.async_get(hass)
+    await settle_until(hass, lambda: bool(manager.charge_state) and manager._vehicle.pending_command_count == 0)
+
+    assert registry.async_get_entity_id("sensor", DOMAIN, f"{VIN}_sensor_outlet_state") is None
+    assert registry.async_get_entity_id("sensor", DOMAIN, f"{VIN}_sensor_tonneau_percent_open") is None
+
+    manager._on_charge_state(
+        {
+            **manager.charge_state,
+            "outlet_state": 2,
+            "power_feed_state": 0,
+            "powershare_type": 1,
+            "powershare_feature_enabled": True,
+            "powershare_instantaneous_load_kw": 1.5,
+            "powershare_soc_limit": 20,
+        }
+    )
+    manager._notify()
+    await hass.async_block_till_done()
+    assert state_of(hass, "sensor", f"{VIN}_sensor_outlet_state") == "Cabin"
+    assert state_of(hass, "binary_sensor", f"{VIN}_binary_powershare_enabled") == "on"
+    assert float(state_of(hass, "sensor", f"{VIN}_sensor_powershare_load")) == 1.5
+
+    manager._on_closures_state({**manager.closures_state, "tonneau_state": 1, "tonneau_percent_open": 40})
+    manager._notify()
+    await hass.async_block_till_done()
+    assert state_of(hass, "sensor", f"{VIN}_sensor_tonneau_state") == "Open"
+    assert float(state_of(hass, "sensor", f"{VIN}_sensor_tonneau_percent_open")) == 40
+
+    assert "outlet_state" in manager.capabilities
+
+
+async def test_media_player_entity(hass, sim, monkeypatch, hass_storage) -> None:
+    entry, _ = await setup_entry(hass, sim, monkeypatch, hass_storage)
+    manager = entry.runtime_data
+    registry = er.async_get(hass)
+    await settle_until(hass, lambda: manager.connected and manager.state_fresh("vehicle_status"))
+
+    media_id = registry.async_get_entity_id("media_player", DOMAIN, f"{VIN}_media_player_media")
+    assert media_id is not None
+
+    manager._on_media_state(
+        {
+            "media_playback_status": 1,
+            "now_playing_title": "Song",
+            "now_playing_artist": "Artist",
+            "audio_volume": 5.0,
+            "audio_volume_max": 10.0,
+        }
+    )
+    manager._notify()
+    await hass.async_block_till_done()
+    state = hass.states.get(media_id)
+    assert state.state == "playing"
+    assert state.attributes["media_title"] == "Song"
+    assert state.attributes["media_artist"] == "Artist"
+    assert state.attributes["volume_level"] == 0.5
+
+    async def complete(name, action, **kwargs):
+        manager.last_command = f"{name}: ok"
+        manager._notify()
+
+    monkeypatch.setattr(manager, "async_command", complete)
+    await hass.services.async_call("media_player", "media_pause", {"entity_id": media_id}, blocking=True)
+    await hass.async_block_till_done()
+    assert state_of(hass, "sensor", f"{VIN}_sensor_last_command") == "Media Toggle Playback: ok"

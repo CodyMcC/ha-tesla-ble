@@ -18,7 +18,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 import tesla_ble
 
 from .const import TeslaBLEConfigEntry
-from .entity import TeslaBLEEntity
+from .entity import TeslaBLEEntity, async_add_supported_entities
 from .manager import TeslaBLEManager
 
 
@@ -50,6 +50,26 @@ def _closure(manager: TeslaBLEManager, key: str) -> bool | None:
 
 def _window(manager: TeslaBLEManager, key: str) -> bool | None:
     value = manager.closures_state.get(key)
+    return None if value is None else bool(value)
+
+
+def _tonneau_open(manager: TeslaBLEManager) -> bool | None:
+    raw = manager.vehicle_status.get("closures_raw", {}).get("tonneau")
+    if raw in CLOSURE_TAGS:
+        return tesla_ble.closure_is_open(raw)
+    state = manager.closures_state.get("tonneau_state")
+    if state in CLOSURE_TAGS:
+        return tesla_ble.closure_is_open(state)
+    return None
+
+
+def _tonneau_in_motion(manager: TeslaBLEManager) -> bool | None:
+    value = manager.closures_state.get("tonneau_in_motion")
+    return None if value is None else bool(value)
+
+
+def _powershare_enabled(manager: TeslaBLEManager) -> bool | None:
+    value = manager.charge_state.get("powershare_feature_enabled")
     return None if value is None else bool(value)
 
 
@@ -222,6 +242,36 @@ READ_ONLY_DESCRIPTIONS: tuple[TeslaBinarySensorDescription, ...] = (
 )
 
 
+SUPPORTED_BINARY_DESCRIPTIONS: tuple[tuple[TeslaBinarySensorDescription, tuple[str, ...]], ...] = (
+    (
+        TeslaBinarySensorDescription(
+            key="tonneau",
+            state="vehicle_status",
+            value_fn=_tonneau_open,
+            device_class=BinarySensorDeviceClass.DOOR,
+        ),
+        ("tonneau_percent_open", "tonneau_state"),
+    ),
+    (
+        TeslaBinarySensorDescription(
+            key="tonneau_in_motion",
+            state="closures_state",
+            value_fn=_tonneau_in_motion,
+            entity_registry_enabled_default=False,
+        ),
+        ("tonneau_in_motion",),
+    ),
+    (
+        TeslaBinarySensorDescription(
+            key="powershare_enabled",
+            state="charge_state",
+            value_fn=_powershare_enabled,
+        ),
+        ("powershare_feature_enabled",),
+    ),
+)
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: TeslaBLEConfigEntry,
@@ -231,6 +281,11 @@ async def async_setup_entry(
     async_add_entities(TeslaBinarySensor(manager, description) for description in BINARY_SENSOR_DESCRIPTIONS)
     if not manager.can_control_vehicle:
         async_add_entities(TeslaBinarySensor(manager, description) for description in READ_ONLY_DESCRIPTIONS)
+    async_add_supported_entities(
+        manager,
+        async_add_entities,
+        [(TeslaBinarySensor(manager, description), fields) for description, fields in SUPPORTED_BINARY_DESCRIPTIONS],
+    )
 
 
 class TeslaBinarySensor(TeslaBLEEntity, BinarySensorEntity):

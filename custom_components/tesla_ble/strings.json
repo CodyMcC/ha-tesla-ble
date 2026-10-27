@@ -115,6 +115,15 @@
       },
       "scheduled_departure": {
         "name": "Scheduled departure"
+      },
+      "powershare_enabled": {
+        "name": "Powershare enabled"
+      },
+      "tonneau": {
+        "name": "Tonneau open"
+      },
+      "tonneau_in_motion": {
+        "name": "Tonneau in motion"
       }
     },
     "update": {
@@ -157,6 +166,18 @@
       },
       "unlatch_driver_door": {
         "name": "Unlatch driver door"
+      },
+      "enable_low_power_mode": {
+        "name": "Low power mode enable"
+      },
+      "disable_low_power_mode": {
+        "name": "Low power mode disable"
+      },
+      "enable_keep_accessory_power": {
+        "name": "Keep accessory power enable"
+      },
+      "disable_keep_accessory_power": {
+        "name": "Keep accessory power disable"
       }
     },
     "cover": {
@@ -189,6 +210,11 @@
         "name": "Charge port latch"
       }
     },
+    "media_player": {
+      "media": {
+        "name": "Media"
+      }
+    },
     "number": {
       "charge_amps": {
         "name": "Charging amps"
@@ -204,6 +230,9 @@
       "steering_wheel_heat_mode": {"name": "Steering heat mode"},
       "battery_level": {
         "name": "Battery"
+      },
+      "usable_battery_level": {
+        "name": "Usable battery"
       },
       "battery_range": {
         "name": "Range"
@@ -279,6 +308,30 @@
       },
       "charge_limit_reason": {
         "name": "Charge limit reason"
+      },
+      "outlet_state": {
+        "name": "Outlet state"
+      },
+      "power_feed_state": {
+        "name": "Power feed state"
+      },
+      "powershare_type": {
+        "name": "Powershare type"
+      },
+      "powershare_load": {
+        "name": "Powershare load"
+      },
+      "powershare_soc_limit": {
+        "name": "Powershare SoC limit"
+      },
+      "powershare_stop_reason": {
+        "name": "Powershare stop reason"
+      },
+      "tonneau_state": {
+        "name": "Tonneau state"
+      },
+      "tonneau_percent_open": {
+        "name": "Tonneau percent open"
       }
     },
     "switch": {

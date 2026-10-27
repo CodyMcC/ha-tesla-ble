@@ -59,8 +59,13 @@ async def test_role_entities_keep_telemetry_and_only_allowed_controls(hass, sim,
             ("button", "button_wake", charging_control),
             ("button", "button_honk_horn", full_control),
             ("button", "button_flash_lights", full_control),
+            ("button", "button_enable_low_power_mode", full_control),
+            ("button", "button_disable_low_power_mode", full_control),
+            ("button", "button_enable_keep_accessory_power", full_control),
+            ("button", "button_disable_keep_accessory_power", full_control),
             ("switch", "switch_sentry_mode", full_control),
             ("switch", "switch_steering_wheel_heat", full_control),
+            ("media_player", "media_player_media", full_control),
         ):
             assert bool(registry.async_get_entity_id(domain, DOMAIN, f"{VIN}_{key}")) == allowed
         assert registry.async_get_entity_id("button", DOMAIN, f"{VIN}_button_pair") is not None

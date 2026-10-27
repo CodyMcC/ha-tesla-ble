@@ -9,10 +9,14 @@ near the car. No custom ESPHome vehicle component is required.
 
 ## What you get
 
-- **Vehicle data:** battery, range, charging, temperatures, tire pressures,
+- **Vehicle data:** battery, usable battery, range, charging, temperatures, tire pressures,
   odometer, doors, locks, sleep state, estimated AC Energy, and battery Energy added.
+  Optional Cybertruck/power fields (outlet, powershare, tonneau) appear when the
+  vehicle reports them.
 - **Controls:** locks, charging, charge limit/current, climate, fitted seat
-  heating/cooling, trunk/frunk, charge port, windows, lights, and horn.
+  heating/cooling, trunk/frunk, charge port, windows, lights, horn, and media
+  playback when supported. Set-only **Low power mode** and **Keep accessory power**
+  buttons send enable/disable commands (BLE exposes no readable state).
 - **Bluetooth presence:** know when the car is nearby—not GPS tracking.
 - **Auto-discovery:** nearby cars appear in HA, ready to add and pair.
 - **Sleep-friendly polling:** automatic updates do not deliberately wake the car.
@@ -117,6 +121,8 @@ Open the Tesla BLE device page to find its sensors and controls.
 | Change the Bluetooth address without losing keys | **Reconfigure** |
 | Check whether the car is nearby | **Location** or **Connection** |
 | Check a command's result | **Last command** |
+| Play/pause cabin media | **Media** |
+| Toggle low power / accessory power (set-only) | **Low power mode enable/disable**, **Keep accessory power enable/disable** |
 
 ### Sleep and availability
 
@@ -186,6 +192,10 @@ gets stale.
   not an installation already running.
 - Some diagnostic and pairing entities are disabled by default. Enable them
   on the device's entity page when needed.
+- **Low power mode** and **Keep accessory power** are set-only buttons: BLE does
+  not report their current state, so there is no switch or optimistic toggle.
+- **Media** uses a separate `media_state` poll alongside other infotainment
+  groups; playback controls need vehicle-control access.
 
 ### Keys and removal
 
