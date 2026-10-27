@@ -9,7 +9,10 @@
       "parking_brake": {"default": "mdi:parking"},
       "scheduled_charging": {"default": "mdi:calendar-clock"},
       "scheduled_departure": {"default": "mdi:calendar-arrow-right"},
-      "doors": {"default": "mdi:car-door"}
+      "doors": {"default": "mdi:car-door"},
+      "powershare_enabled": {"default": "mdi:home-battery"},
+      "tonneau": {"default": "mdi:car-pickup"},
+      "tonneau_in_motion": {"default": "mdi:arrow-up-down"}
     },
     "button": {
       "wake": {"default": "mdi:sleep-off"},
@@ -18,7 +21,11 @@
       "force_update": {"default": "mdi:refresh"},
       "flash_lights": {"default": "mdi:car-light-high"},
       "honk_horn": {"default": "mdi:bullhorn"},
-      "unlatch_driver_door": {"default": "mdi:car-door-lock-open"}
+      "unlatch_driver_door": {"default": "mdi:car-door-lock-open"},
+      "enable_low_power_mode": {"default": "mdi:battery-plus-variant"},
+      "disable_low_power_mode": {"default": "mdi:battery-minus-variant"},
+      "enable_keep_accessory_power": {"default": "mdi:power-plug"},
+      "disable_keep_accessory_power": {"default": "mdi:power-plug-off"}
     },
     "cover": {
       "trunk": {"default": "mdi:car-back"},
@@ -31,6 +38,9 @@
     "lock": {
       "doors": {"default": "mdi:car-door-lock", "state": {"unlocked": "mdi:car-door-lock-open"}},
       "charge_port_latch": {"default": "mdi:ev-plug-tesla"}
+    },
+    "media_player": {
+      "media": {"default": "mdi:music"}
     },
     "number": {
       "charge_limit": {"default": "mdi:battery-arrow-up"},

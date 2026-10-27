@@ -49,6 +49,59 @@ SHIFT_STATE_OPTIONS = ["P", "R", "N", "D", "SNA", "Invalid", "Unknown"]
 IEC61851_OPTIONS = ["A", "B", "C", "E", "F", "Unknown"]
 CHARGE_LIMIT_REASON_OPTIONS = ["None", "EVSE", "BattTempLow", "HighSoc", "Cabin", "Unknown"]
 
+OUTLET_STATE_OPTIONS = ["Off", "Cabin and bed", "Cabin", "Unknown"]
+POWER_FEED_STATE_OPTIONS = ["Off", "Cabin and bed", "Cabin", "Unknown"]
+POWERSHARE_TYPE_OPTIONS = ["None", "Load", "Home", "Unknown"]
+POWERSHARE_STOP_REASON_OPTIONS = [
+    "None",
+    "SOC too low",
+    "Retry",
+    "Fault",
+    "User",
+    "Reconnecting",
+    "Authentication",
+    "Unknown",
+]
+TONNEAU_STATE_OPTIONS = ["Closed", "Open", "Ajar", "Unknown", "Failed unlatch", "Opening", "Closing"]
+
+
+def _enum_label(value: int | None, labels: list[str]) -> str | None:
+    if value is None:
+        return None
+    if 0 <= value < len(labels):
+        return labels[value]
+    return "Unknown"
+
+
+def _outlet_state(manager: TeslaBLEManager) -> str | None:
+    return _enum_label(manager.charge_state.get("outlet_state"), OUTLET_STATE_OPTIONS)
+
+
+def _power_feed_state(manager: TeslaBLEManager) -> str | None:
+    return _enum_label(manager.charge_state.get("power_feed_state"), POWER_FEED_STATE_OPTIONS)
+
+
+def _powershare_type(manager: TeslaBLEManager) -> str | None:
+    return _enum_label(manager.charge_state.get("powershare_type"), POWERSHARE_TYPE_OPTIONS)
+
+
+def _powershare_stop_reason(manager: TeslaBLEManager) -> str | None:
+    return _enum_label(manager.charge_state.get("powershare_stop_reason"), POWERSHARE_STOP_REASON_OPTIONS)
+
+
+def _tonneau_state(manager: TeslaBLEManager) -> str | None:
+    raw = manager.closures_state.get("tonneau_state")
+    if raw is None:
+        raw = manager.vehicle_status.get("closures_raw", {}).get("tonneau")
+    return _enum_label(raw, TONNEAU_STATE_OPTIONS)
+
+
+def _tonneau_percent(manager: TeslaBLEManager) -> int | None:
+    value = manager.closures_state.get("tonneau_percent_open")
+    if value is None:
+        value = manager.vehicle_status.get("tonneau_percent_open")
+    return value
+
 
 def _odometer_miles(manager: TeslaBLEManager) -> float | None:
     value = manager.drive_state.get("odometer_in_hundredths_of_a_mile")
@@ -161,6 +214,14 @@ SENSOR_DESCRIPTIONS: tuple[TeslaSensorDescription, ...] = (
         icon="mdi:battery",
         value_fn=lambda m: m.charge_state.get("battery_level"),
         attrs_fn=_battery_attributes,
+        device_class=SensorDeviceClass.BATTERY,
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    TeslaSensorDescription(
+        key="usable_battery_level",
+        icon="mdi:battery-outline",
+        value_fn=lambda m: m.charge_state.get("usable_battery_level"),
         device_class=SensorDeviceClass.BATTERY,
         native_unit_of_measurement=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
@@ -361,6 +422,75 @@ SENSOR_DESCRIPTIONS: tuple[TeslaSensorDescription, ...] = (
         value_fn=lambda m: m.charge_state.get("charge_limit_reason"),
         device_class=SensorDeviceClass.ENUM,
         options=CHARGE_LIMIT_REASON_OPTIONS,
+    ),
+    TeslaSensorDescription(
+        key="outlet_state",
+        icon="mdi:power-socket-us",
+        value_fn=_outlet_state,
+        device_class=SensorDeviceClass.ENUM,
+        options=OUTLET_STATE_OPTIONS,
+        supported_by=("outlet_state",),
+    ),
+    TeslaSensorDescription(
+        key="power_feed_state",
+        icon="mdi:transmission-tower-export",
+        value_fn=_power_feed_state,
+        device_class=SensorDeviceClass.ENUM,
+        options=POWER_FEED_STATE_OPTIONS,
+        supported_by=("power_feed_state",),
+    ),
+    TeslaSensorDescription(
+        key="powershare_type",
+        icon="mdi:home-lightning-bolt-outline",
+        value_fn=_powershare_type,
+        device_class=SensorDeviceClass.ENUM,
+        options=POWERSHARE_TYPE_OPTIONS,
+        supported_by=("powershare_type",),
+    ),
+    TeslaSensorDescription(
+        key="powershare_stop_reason",
+        icon="mdi:information-outline",
+        value_fn=_powershare_stop_reason,
+        device_class=SensorDeviceClass.ENUM,
+        options=POWERSHARE_STOP_REASON_OPTIONS,
+        supported_by=("powershare_stop_reason",),
+        entity_registry_enabled_default=False,
+    ),
+    TeslaSensorDescription(
+        key="powershare_load",
+        icon="mdi:flash",
+        value_fn=lambda m: m.charge_state.get("powershare_instantaneous_load_kw"),
+        device_class=SensorDeviceClass.POWER,
+        native_unit_of_measurement=UnitOfPower.KILO_WATT,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=2,
+        supported_by=("powershare_instantaneous_load_kw",),
+    ),
+    TeslaSensorDescription(
+        key="powershare_soc_limit",
+        icon="mdi:battery-charging-40",
+        value_fn=lambda m: m.charge_state.get("powershare_soc_limit"),
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        supported_by=("powershare_soc_limit",),
+    ),
+    TeslaSensorDescription(
+        key="tonneau_state",
+        icon="mdi:car-pickup",
+        state="vehicle_status",
+        value_fn=_tonneau_state,
+        device_class=SensorDeviceClass.ENUM,
+        options=TONNEAU_STATE_OPTIONS,
+        supported_by=("tonneau_state", "tonneau_percent_open"),
+    ),
+    TeslaSensorDescription(
+        key="tonneau_percent_open",
+        icon="mdi:arrow-expand-vertical",
+        state="vehicle_status",
+        value_fn=_tonneau_percent,
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        supported_by=("tonneau_percent_open",),
     ),
     TeslaSensorDescription(
         key="last_command",

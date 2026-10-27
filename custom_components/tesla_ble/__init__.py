@@ -58,6 +58,7 @@ PLATFORMS = [
     "cover",
     "device_tracker",
     "lock",
+    "media_player",
     "number",
     "sensor",
     "select",

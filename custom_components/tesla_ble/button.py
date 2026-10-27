@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
+
 from homeassistant.components.button import ButtonEntity
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
@@ -23,7 +25,36 @@ async def async_setup_entry(
         entities.append(TeslaWakeButton(manager))
     if manager.can_control_vehicle:
         entities.extend(
-            [TeslaUnlatchDriverDoorButton(manager), TeslaFlashLightsButton(manager), TeslaHonkHornButton(manager)]
+            [
+                TeslaUnlatchDriverDoorButton(manager),
+                TeslaFlashLightsButton(manager),
+                TeslaHonkHornButton(manager),
+                # Set-only actions: BLE exposes no readable state for these.
+                TeslaSetOnlyButton(
+                    manager,
+                    key="button_enable_low_power_mode",
+                    translation_key="enable_low_power_mode",
+                    action=lambda m: m.async_set_low_power_mode(True),
+                ),
+                TeslaSetOnlyButton(
+                    manager,
+                    key="button_disable_low_power_mode",
+                    translation_key="disable_low_power_mode",
+                    action=lambda m: m.async_set_low_power_mode(False),
+                ),
+                TeslaSetOnlyButton(
+                    manager,
+                    key="button_enable_keep_accessory_power",
+                    translation_key="enable_keep_accessory_power",
+                    action=lambda m: m.async_set_keep_accessory_power_mode(True),
+                ),
+                TeslaSetOnlyButton(
+                    manager,
+                    key="button_disable_keep_accessory_power",
+                    translation_key="disable_keep_accessory_power",
+                    action=lambda m: m.async_set_keep_accessory_power_mode(False),
+                ),
+            ]
         )
     async_add_entities(entities)
 
@@ -115,3 +146,22 @@ class TeslaUnlatchDriverDoorButton(TeslaVehicleButton):
 
     async def async_press(self) -> None:
         await self.manager.async_unlatch_driver_door()
+
+
+class TeslaSetOnlyButton(TeslaVehicleButton):
+    """Fire a set-only vehicle action that has no readable telemetry state."""
+
+    def __init__(
+        self,
+        manager: TeslaBLEManager,
+        *,
+        key: str,
+        translation_key: str,
+        action: Callable[[TeslaBLEManager], Awaitable[None]],
+    ) -> None:
+        super().__init__(manager, key)
+        self._attr_translation_key = translation_key
+        self._action = action
+
+    async def async_press(self) -> None:
+        await self._action(self.manager)

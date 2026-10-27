@@ -142,6 +142,7 @@ class TeslaBLEManager:
         self.closures_state: dict[str, Any] = {}
         self.tire_pressure_state: dict[str, Any] = {}
         self.software_update_state: dict[str, Any] = {}
+        self.media_state: dict[str, Any] = {}
         self.last_command: str | None = None
         self.connected = False
         self.rssi: int | None = None
@@ -296,6 +297,7 @@ class TeslaBLEManager:
         self._vehicle.set_tire_pressure_state_callback(self._on_tire_pressure_state)
         self._vehicle.set_closures_state_callback(self._on_closures_state)
         self._vehicle.set_software_update_state_callback(self._on_software_update_state)
+        self._vehicle.set_media_state_callback(self._on_media_state)
         self._vehicle.set_key_not_paired_callback(self._on_key_not_paired)
         self._vehicle.set_poll_result_callback(self._on_poll_result)
 
@@ -588,6 +590,9 @@ class TeslaBLEManager:
                 self._poll_policy.begin_probe_window(monotonic_ms(), PROBE_WINDOW_SECONDS * 1000)
                 self._probe_pending = False
                 self._refresh_pending = True
+        # Cybertruck tonneau percent arrives on VCSEC detailedClosureStatus.
+        if "tonneau_percent_open" in status:
+            self._remember_capabilities({"tonneau_percent_open": status["tonneau_percent_open"]})
         self._received_state("vehicle_status")
 
     def _record_genuine_activity(self) -> None:
@@ -624,6 +629,7 @@ class TeslaBLEManager:
                     self._energy_last_session = session_energy
             self._save_energy()
         self._integrate_ac_energy(state)
+        self._remember_capabilities(state)
         self.charge_state = state
         self._received_state("charge_state")
 
@@ -694,6 +700,18 @@ class TeslaBLEManager:
                 "cabin_overheat_protection",
                 "cop_activation_temperature",
                 "sun_roof_percent_open",
+                "outlet_state",
+                "power_feed_state",
+                "powershare_feature_allowed",
+                "powershare_feature_enabled",
+                "powershare_type",
+                "powershare_stop_reason",
+                "powershare_instantaneous_load_kw",
+                "powershare_soc_limit",
+                "power_feed_soc_limit",
+                "tonneau_percent_open",
+                "tonneau_state",
+                "tonneau_in_motion",
             }
         }
         if not observed.issubset(self.capabilities):
@@ -703,6 +721,10 @@ class TeslaBLEManager:
     def _on_software_update_state(self, state: dict[str, Any]) -> None:
         self.software_update_state = state
         self._received_state("software_update_state")
+
+    def _on_media_state(self, state: dict[str, Any]) -> None:
+        self.media_state = state
+        self._received_state("media_state")
 
     def _on_notify(self, data: bytes) -> None:
         if self._stopped or self._vehicle is None or not self.connected:
@@ -919,6 +941,7 @@ class TeslaBLEManager:
             self._last_poll_error = None
             self._poll_attempts.update({state: {"outcome": "pending"} for state in INFOTAINMENT_STATES})
             self._vehicle.infotainment_poll(tesla_ble.WakePolicy.NO_WAKE_SKIP)
+            self._vehicle.media_state_poll(tesla_ble.WakePolicy.NO_WAKE_SKIP)
             self._poll_policy.on_poll(now_ms)
         self._refresh_pending = False
         await self._transport.async_flush()
@@ -1033,6 +1056,7 @@ class TeslaBLEManager:
             self._vehicle.vcsec_poll()
             wake_policy = tesla_ble.WakePolicy.WAKE_IF_NEEDED if self.can_wake else tesla_ble.WakePolicy.NO_WAKE_SKIP
             self._vehicle.infotainment_poll(wake_policy)
+            self._vehicle.media_state_poll(wake_policy)
             self._vehicle.software_update_poll(wake_policy)
             self._poll_policy.on_poll(monotonic_ms())
             self._refresh_pending = False
@@ -1147,6 +1171,38 @@ class TeslaBLEManager:
             "Sentry On" if enable else "Sentry Off",
             lambda cb: self._vehicle.set_sentry_mode(enable, cb),
         )
+
+    async def async_set_low_power_mode(self, enable: bool) -> None:
+        """Set-only: BLE exposes no readable low-power-mode telemetry."""
+        await self.async_command(
+            "Low Power Mode On" if enable else "Low Power Mode Off",
+            lambda cb: self._vehicle.set_low_power_mode(enable, cb),
+        )
+
+    async def async_set_keep_accessory_power_mode(self, enable: bool) -> None:
+        """Set-only: BLE exposes no readable keep-accessory-power telemetry."""
+        await self.async_command(
+            "Keep Accessory Power On" if enable else "Keep Accessory Power Off",
+            lambda cb: self._vehicle.set_keep_accessory_power_mode(enable, cb),
+        )
+
+    async def async_media_toggle_playback(self) -> None:
+        await self.async_command("Media Toggle Playback", lambda cb: self._vehicle.media_toggle_playback(cb))
+
+    async def async_media_next_track(self) -> None:
+        await self.async_command("Media Next Track", lambda cb: self._vehicle.media_next_track(cb))
+
+    async def async_media_previous_track(self) -> None:
+        await self.async_command("Media Previous Track", lambda cb: self._vehicle.media_previous_track(cb))
+
+    async def async_media_volume_up(self) -> None:
+        await self.async_command("Media Volume Up", lambda cb: self._vehicle.media_volume_up(cb))
+
+    async def async_media_volume_down(self) -> None:
+        await self.async_command("Media Volume Down", lambda cb: self._vehicle.media_volume_down(cb))
+
+    async def async_set_media_volume(self, level: float) -> None:
+        await self.async_command("Set Media Volume", lambda cb: self._vehicle.set_media_volume(level, cb))
 
     async def async_regenerate_key(self) -> None:
         async with self._work():
