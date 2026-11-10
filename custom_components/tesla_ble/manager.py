@@ -83,6 +83,8 @@ INFOTAINMENT_STATES = (
     "closures_state",
     "drive_state",
     "tire_pressure_state",
+    # Separate poll, same freshness contract as the other infotainment groups.
+    "media_state",
 )
 TELEMETRY_STATES = ("vehicle_status", "software_update_state", *INFOTAINMENT_STATES)
 POLL_STATE_NAMES = {
@@ -93,6 +95,7 @@ POLL_STATE_NAMES = {
     "Closures State Poll": "closures_state",
     "Tire Pressure Poll": "tire_pressure_state",
     "Software Update Poll": "software_update_state",
+    "Media State Poll": "media_state",
 }
 
 

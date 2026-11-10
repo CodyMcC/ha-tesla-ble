@@ -2021,3 +2021,34 @@ async def test_media_player_entity(hass, sim, monkeypatch, hass_storage) -> None
     await hass.services.async_call("media_player", "media_pause", {"entity_id": media_id}, blocking=True)
     await hass.async_block_till_done()
     assert state_of(hass, "sensor", f"{VIN}_sensor_last_command") == "Media Toggle Playback: ok"
+
+    # media_state is polled separately but shares infotainment availability:
+    # an old reading stays visible, and a group that was never read does not.
+    assert "media_state" in manager_module.INFOTAINMENT_STATES
+    assert "media_state" in manager_module.TELEMETRY_STATES
+    assert manager_module.POLL_STATE_NAMES["Media State Poll"] == "media_state"
+    assert hass.states.get(media_id).attributes["stale"] is False
+
+    manager._state_received_at["media_state"] = time.monotonic() - 3600
+    manager._notify()
+    await hass.async_block_till_done()
+    aged = hass.states.get(media_id)
+    assert aged.state == "playing"
+    assert aged.attributes["media_title"] == "Song"
+    assert aged.attributes["stale"] is True
+    assert manager.state_available("media_state")
+    assert not manager.state_fresh("media_state")
+
+    manager._state_received_at.pop("media_state")
+    manager.state_observed_at.pop("media_state")
+    manager.vehicle_status = {**manager.vehicle_status, "asleep": False}
+    manager._notify()
+    await hass.async_block_till_done()
+    assert not manager.state_available("media_state")
+    assert hass.states.get(media_id).state == "unavailable"
+
+    manager._on_poll_result(
+        "Media State Poll",
+        SimpleNamespace(outcome="success", terminal_reason="completed", error_message=None),
+    )
+    assert manager.polling_diagnostics["groups"]["media_state"]["poll"]["outcome"] == "success"
